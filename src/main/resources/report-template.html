@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+    --series-7: #4a3aa7;
+    --series-8: #e34948;
+    --status-good: #0ca30c;
+    --status-critical: #d03b3b;
+    --accent: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --series-4: #c98500;
+      --series-5: #d55181;
+      --series-6: #008300;
+      --series-7: #9085e9;
+      --series-8: #e66767;
+      --status-good: #0ca30c;
+      --status-critical: #d03b3b;
+      --accent: #3987e5;
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface-1: #1a1a19;
+    --page: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
+    --status-good: #0ca30c;
+    --status-critical: #d03b3b;
+    --accent: #3987e5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    padding: 24px;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  header h1 { font-size: 22px; font-weight: 650; }
+  header .sub { color: var(--text-secondary); margin-top: 2px; font-size: 13px; }
+  header .sub span + span::before { content: "·"; margin: 0 6px; color: var(--text-muted); }
+
+  .filters {
+    display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;
+    margin: 20px 0 16px;
+  }
+  .filter-group .flabel {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); margin-bottom: 4px;
+  }
+  .seg { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+  .seg button {
+    font: inherit; font-size: 13px; cursor: pointer;
+    color: var(--text-secondary);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 12px;
+  }
+  .seg button:hover { color: var(--text-primary); }
+  .seg button[aria-pressed="true"] {
+    color: var(--text-primary); border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+    font-weight: 600;
+  }
+  .hint { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .tile {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .tile .tlabel { font-size: 12px; color: var(--text-secondary); }
+  .tile .tvalue { font-size: 26px; font-weight: 600; margin-top: 2px; }
+  .tile .tnote { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .tile.err-bad .tvalue { color: var(--status-critical); }
+  .tile.err-good .tnote::before { content: "✓ "; color: var(--status-good); }
+  .tile.err-bad .tnote::before { content: "⚠ "; color: var(--status-critical); }
+
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px 10px; margin-bottom: 16px;
+    position: relative;
+  }
+  .card h2 { font-size: 14px; font-weight: 600; }
+  .card .csub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .card-head .opts { display: flex; gap: 10px; align-items: center; }
+  .card-head label { font-size: 12px; color: var(--text-secondary); cursor: pointer; user-select: none; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 2px; }
+  .legend .lkey { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .legend .lkey i { display: inline-block; width: 14px; height: 0; border-top: 2.5px solid; border-radius: 2px; }
+  .chart-box { position: relative; }
+  .chart-box svg { display: block; width: 100%; }
+  .empty {
+    color: var(--text-muted); font-size: 13px; padding: 28px 0 34px; text-align: center;
+  }
+  .tooltip {
+    position: absolute; pointer-events: none; z-index: 10; display: none;
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font-size: 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.18); min-width: 130px;
+  }
+  .tooltip .tt-time { color: var(--text-muted); margin-bottom: 4px; }
+  .tooltip .tt-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+  .tooltip .tt-row i { display: inline-block; width: 12px; height: 0; border-top: 2.5px solid; border-radius: 2px; flex: none; }
+  .tooltip .tt-val { font-weight: 650; color: var(--text-primary); margin-left: auto; padding-left: 10px; font-variant-numeric: tabular-nums; }
+  .tooltip .tt-name { color: var(--text-secondary); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; font-variant-numeric: normal; }
+  th { color: var(--text-muted); font-weight: 500; font-size: 12px; }
+  td { color: var(--text-secondary); }
+  td:first-child { color: var(--text-primary); }
+  tr:last-child td { border-bottom: none; }
+  td .err-flag { color: var(--status-critical); font-weight: 600; }
+
+  footer { color: var(--text-muted); font-size: 12px; margin: 18px 0 6px; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title"></h1>
+    <div class="sub" id="subtitle"></div>
+  </header>
+
+  <div class="filters">
+    <div class="filter-group">
+      <div class="flabel">Activity (scenario step)</div>
+      <div class="seg" id="activity-seg" role="group" aria-label="Activity"></div>
+    </div>
+    <div class="filter-group">
+      <div class="flabel">Statement (op template)</div>
+      <div class="seg" id="op-seg" role="group" aria-label="Statement"></div>
+      <div class="hint" id="op-hint" hidden>Run nb5 with <code>instrument=true</code> to get per-statement metrics.</div>
+    </div>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Throughput</h2>
+        <div class="csub">operations per second, per reporting interval</div>
+      </div>
+    </div>
+    <div id="chart-rate"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Latency percentiles</h2>
+        <div class="csub" id="latency-sub">milliseconds, distribution within each reporting interval</div>
+      </div>
+      <div class="opts">
+        <label><input type="checkbox" id="lat-log"> log scale</label>
+      </div>
+    </div>
+    <div id="chart-latency"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Errors</h2>
+        <div class="csub">failed operations per second</div>
+      </div>
+    </div>
+    <div id="chart-errors"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Cumulative errors</h2>
+        <div class="csub" id="errtypes-sub">running total over the run</div>
+      </div>
+    </div>
+    <div id="chart-errors-cum"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Statements summary</h2>
+        <div class="csub">totals for the selected activity</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="ops-table"></table>
+    </div>
+  </div>
+
+  <footer>
+    Generated by <a href="https://github.com/eolivelli/nb5-visualizer">nb5-visualizer</a>
+    <span id="gen-info"></span> — times shown in your browser's time zone.
+  </footer>
+</div>
+
+<script id="nb5-data" type="application/json">__DATA_JSON__</script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("nb5-data").textContent);
+const state = { activity: 0, op: -1, latLog: false }; // op -1 = whole activity
+// default to the busiest activity (usually "main" rather than schema/rampup)
+if (DATA.activities && DATA.activities.length) {
+  state.activity = DATA.activities.reduce((best, a, i) =>
+      a.summary.totalOps > DATA.activities[best].summary.totalOps ? i : best, 0);
+}
+
+const $ = (id) => document.getElementById(id);
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const SERIES_VARS = ["--series-1","--series-2","--series-3","--series-4","--series-5","--series-6","--series-7","--series-8"];
+
+function fmtNum(v, digits) {
+  if (v == null || !isFinite(v)) return "–";
+  if (digits === undefined) {
+    digits = Math.abs(v) >= 100 ? 0 : (Math.abs(v) >= 10 ? 1 : 2);
+  }
+  return v.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+}
+function fmtCompact(v) {
+  if (v == null || !isFinite(v)) return "–";
+  if (Math.abs(v) >= 1e6) return fmtNum(v / 1e6, 1) + "M";
+  if (Math.abs(v) >= 1e4) return fmtNum(v / 1e3, 1) + "K";
+  return fmtNum(v, 0);
+}
+function fmtMs(v) {
+  if (v == null || !isFinite(v)) return "–";
+  if (v === 0) return "0";
+  if (v >= 1000) return fmtNum(v / 1000, 2) + " s";
+  if (v < 0.1) return fmtNum(v * 1000, 0) + " µs";
+  return fmtNum(v) + " ms";
+}
+function fmtTime(epochS) {
+  return new Date(epochS * 1000).toLocaleTimeString([], { hour12: false });
+}
+function fmtDateTime(epochS) {
+  return new Date(epochS * 1000).toLocaleString([], { hour12: false });
+}
+function fmtDuration(s) {
+  if (s == null || !isFinite(s)) return "–";
+  s = Math.round(s);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return (h ? h + "h " : "") + (h || m ? m + "m " : "") + sec + "s";
+}
+
+function activity() { return DATA.activities[state.activity]; }
+function selectedOp() {
+  const a = activity();
+  return state.op >= 0 && a.ops && a.ops[state.op] ? a.ops[state.op] : null;
+}
+
+// ------------------------------------------------------------------ controls
+
+function segButton(label, pressed, onClick) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = label;
+  b.setAttribute("aria-pressed", String(pressed));
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function renderControls() {
+  const actSeg = $("activity-seg");
+  actSeg.textContent = "";
+  DATA.activities.forEach((a, i) => {
+    actSeg.appendChild(segButton(a.name, i === state.activity, () => {
+      state.activity = i; state.op = -1; render();
+    }));
+  });
+
+  const opSeg = $("op-seg");
+  opSeg.textContent = "";
+  const a = activity();
+  const ops = a.ops || [];
+  opSeg.appendChild(segButton("All statements", state.op === -1, () => { state.op = -1; render(); }));
+  ops.forEach((op, i) => {
+    opSeg.appendChild(segButton(op.name, i === state.op, () => { state.op = i; render(); }));
+  });
+  $("op-hint").hidden = ops.length > 0;
+}
+
+// --------------------------------------------------------------------- tiles
+
+function tile(label, value, note, cls) {
+  const d = document.createElement("div");
+  d.className = "tile" + (cls ? " " + cls : "");
+  const l = document.createElement("div"); l.className = "tlabel"; l.textContent = label;
+  const v = document.createElement("div"); v.className = "tvalue"; v.textContent = value;
+  d.appendChild(l); d.appendChild(v);
+  if (note) { const n = document.createElement("div"); n.className = "tnote"; n.textContent = note; d.appendChild(n); }
+  return d;
+}
+
+function renderTiles() {
+  const a = activity();
+  const op = selectedOp();
+  const s = op ? op.summary : a.summary;
+  const tiles = $("tiles");
+  tiles.textContent = "";
+  const scope = op ? "statement " + op.name : "activity " + a.name;
+  tiles.appendChild(tile("Operations", fmtCompact(s.totalOps), scope));
+  tiles.appendChild(tile("Avg rate", fmtNum(s.avgRate, 0) + "/s",
+      a.summary.maxRate != null && !op ? "peak " + fmtNum(a.summary.maxRate, 0) + "/s" : ""));
+  tiles.appendChild(tile("p50 latency", fmtMs(s.p50AvgMs), "count-weighted average"));
+  tiles.appendChild(tile("p99 latency", fmtMs(s.p99MaxMs), "worst interval"));
+  const errCls = s.totalErrors > 0 ? "err-bad" : "err-good";
+  tiles.appendChild(tile("Errors", fmtCompact(s.totalErrors),
+      s.totalErrors > 0 ? "failed operations" : "no errors", errCls));
+  if (!op) {
+    tiles.appendChild(tile("Duration", fmtDuration(s.durationS),
+        a.rateLimited ? "rate-limited run" : "unthrottled"));
+  }
+}
+
+// -------------------------------------------------------------------- charts
+
+// Minimal SVG multi-series line chart with crosshair + tooltip.
+// series: [{ name, color, t:[epochS], v:[number|null] }]
+function lineChart(container, opts) {
+  container.textContent = "";
+  const box = document.createElement("div");
+  box.className = "chart-box";
+  container.appendChild(box);
+
+  const series = opts.series.filter(s => s && s.v && s.v.some(x => x != null && isFinite(x)));
+  if (!series.length) {
+    const e = document.createElement("div");
+    e.className = "empty";
+    e.textContent = opts.emptyText || "No data recorded in this window.";
+    box.appendChild(e);
+    return;
+  }
+
+  if (series.length > 1) {
+    const legend = document.createElement("div");
+    legend.className = "legend";
+    for (const s of series) {
+      const k = document.createElement("span");
+      k.className = "lkey";
+      const i = document.createElement("i");
+      i.style.borderTopColor = s.color;
+      k.appendChild(i);
+      k.appendChild(document.createTextNode(s.name));
+      legend.appendChild(k);
+    }
+    box.appendChild(legend);
+  }
+
+  const width = Math.max(320, container.clientWidth || 900);
+  const height = opts.height || 220;
+  const m = { top: 10, right: 14, bottom: 26, left: 58 };
+  const iw = width - m.left - m.right, ih = height - m.top - m.bottom;
+
+  let tMin = Infinity, tMax = -Infinity, vMax = -Infinity, vMinPos = Infinity;
+  for (const s of series) {
+    for (let i = 0; i < s.t.length; i++) {
+      const v = s.v[i];
+      if (v == null || !isFinite(v)) continue;
+      tMin = Math.min(tMin, s.t[i]); tMax = Math.max(tMax, s.t[i]);
+      vMax = Math.max(vMax, v);
+      if (v > 0) vMinPos = Math.min(vMinPos, v);
+    }
+  }
+  if (tMax === tMin) { tMin -= 1; tMax += 1; }
+  if (vMax <= 0) vMax = 1;
+
+  const log = !!opts.log && vMinPos < Infinity;
+  let yMin, yMaxDomain, yTicks;
+  if (log) {
+    const lo = Math.pow(10, Math.floor(Math.log10(vMinPos)));
+    const hi = Math.pow(10, Math.ceil(Math.log10(vMax)));
+    yMin = lo; yMaxDomain = hi > lo ? hi : lo * 10;
+    yTicks = [];
+    for (let p = yMin; p <= yMaxDomain * 1.0001; p *= 10) yTicks.push(p);
+  } else {
+    yMin = 0;
+    const step = niceStep(vMax / 4);
+    yMaxDomain = Math.max(step, Math.ceil(vMax / step) * step);
+    yTicks = [];
+    for (let v = 0; v <= yMaxDomain * 1.0001; v += step) yTicks.push(v);
+  }
+
+  const x = (t) => m.left + (t - tMin) / (tMax - tMin) * iw;
+  const y = (v) => {
+    if (log) {
+      const clamped = Math.max(v, yMin);
+      return m.top + ih - (Math.log10(clamped) - Math.log10(yMin)) / (Math.log10(yMaxDomain) - Math.log10(yMin)) * ih;
+    }
+    return m.top + ih - (v - yMin) / (yMaxDomain - yMin) * ih;
+  };
+
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.style.height = height + "px";
+
+  const gridColor = cssVar("--grid"), baseColor = cssVar("--baseline"), mutedColor = cssVar("--text-muted");
+  for (const tv of yTicks) {
+    const line = document.createElementNS(NS, "line");
+    line.setAttribute("x1", m.left); line.setAttribute("x2", m.left + iw);
+    line.setAttribute("y1", y(tv)); line.setAttribute("y2", y(tv));
+    line.setAttribute("stroke", tv === yMin && !log ? baseColor : gridColor);
+    line.setAttribute("stroke-width", "1");
+    svg.appendChild(line);
+    const lbl = document.createElementNS(NS, "text");
+    lbl.setAttribute("x", m.left - 8); lbl.setAttribute("y", y(tv) + 4);
+    lbl.setAttribute("text-anchor", "end");
+    lbl.setAttribute("fill", mutedColor);
+    lbl.setAttribute("font-size", "11");
+    lbl.textContent = opts.yTickFormat ? opts.yTickFormat(tv) : fmtCompact(tv);
+    svg.appendChild(lbl);
+  }
+
+  const nXTicks = Math.max(2, Math.min(6, Math.floor(iw / 130)));
+  for (let i = 0; i <= nXTicks; i++) {
+    const tv = tMin + (tMax - tMin) * i / nXTicks;
+    const lbl = document.createElementNS(NS, "text");
+    lbl.setAttribute("x", x(tv)); lbl.setAttribute("y", m.top + ih + 18);
+    lbl.setAttribute("text-anchor", i === 0 ? "start" : (i === nXTicks ? "end" : "middle"));
+    lbl.setAttribute("fill", mutedColor);
+    lbl.setAttribute("font-size", "11");
+    lbl.textContent = fmtTime(tv);
+    svg.appendChild(lbl);
+  }
+
+  for (const s of series) {
+    let d = "";
+    let pen = false;
+    for (let i = 0; i < s.t.length; i++) {
+      const v = s.v[i];
+      if (v == null || !isFinite(v)) { pen = false; continue; }
+      d += (pen ? "L" : "M") + x(s.t[i]).toFixed(1) + " " + y(v).toFixed(1);
+      pen = true;
+    }
+    const path = document.createElementNS(NS, "path");
+    path.setAttribute("d", d);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", s.color);
+    path.setAttribute("stroke-width", "2");
+    path.setAttribute("stroke-linejoin", "round");
+    path.setAttribute("stroke-linecap", "round");
+    svg.appendChild(path);
+    // single-point series would be invisible as a path
+    const points = s.t.filter((_, i) => s.v[i] != null && isFinite(s.v[i]));
+    if (points.length === 1) {
+      const c = document.createElementNS(NS, "circle");
+      const idx = s.v.findIndex(v => v != null && isFinite(v));
+      c.setAttribute("cx", x(s.t[idx])); c.setAttribute("cy", y(s.v[idx]));
+      c.setAttribute("r", "4"); c.setAttribute("fill", s.color);
+      c.setAttribute("stroke", cssVar("--surface-1")); c.setAttribute("stroke-width", "2");
+      svg.appendChild(c);
+    }
+  }
+
+  const cross = document.createElementNS(NS, "line");
+  cross.setAttribute("y1", m.top); cross.setAttribute("y2", m.top + ih);
+  cross.setAttribute("stroke", baseColor); cross.setAttribute("stroke-width", "1");
+  cross.style.display = "none";
+  svg.appendChild(cross);
+  const dots = series.map(s => {
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("r", "4"); c.setAttribute("fill", s.color);
+    c.setAttribute("stroke", cssVar("--surface-1")); c.setAttribute("stroke-width", "2");
+    c.style.display = "none";
+    svg.appendChild(c);
+    return c;
+  });
+
+  box.appendChild(svg);
+  const tooltip = document.createElement("div");
+  tooltip.className = "tooltip";
+  box.appendChild(tooltip);
+
+  const allTs = [...new Set(series.flatMap(s => s.t))].sort((a, b) => a - b);
+  function showAt(clientX, rect) {
+    const px = (clientX - rect.left) / rect.width * width;
+    const tCursor = tMin + (Math.min(Math.max(px, m.left), m.left + iw) - m.left) / iw * (tMax - tMin);
+    let nearest = allTs[0];
+    for (const tv of allTs) if (Math.abs(tv - tCursor) < Math.abs(nearest - tCursor)) nearest = tv;
+    cross.setAttribute("x1", x(nearest)); cross.setAttribute("x2", x(nearest));
+    cross.style.display = "";
+    tooltip.textContent = "";
+    const time = document.createElement("div");
+    time.className = "tt-time";
+    time.textContent = fmtTime(nearest);
+    tooltip.appendChild(time);
+    series.forEach((s, si) => {
+      const i = s.t.indexOf(nearest);
+      const v = i >= 0 ? s.v[i] : null;
+      if (v != null && isFinite(v)) {
+        dots[si].setAttribute("cx", x(nearest)); dots[si].setAttribute("cy", y(v));
+        dots[si].style.display = "";
+      } else {
+        dots[si].style.display = "none";
+      }
+      const row = document.createElement("div");
+      row.className = "tt-row";
+      const key = document.createElement("i");
+      key.style.borderTopColor = s.color;
+      const name = document.createElement("span");
+      name.className = "tt-name";
+      name.textContent = s.name;
+      const val = document.createElement("span");
+      val.className = "tt-val";
+      val.textContent = v != null && isFinite(v) ? (opts.valueFormat ? opts.valueFormat(v) : fmtNum(v)) : "–";
+      row.appendChild(key); row.appendChild(name); row.appendChild(val);
+      tooltip.appendChild(row);
+    });
+    tooltip.style.display = "block";
+    const bw = box.clientWidth;
+    const xPix = x(nearest) / width * rect.width;
+    const flip = xPix > bw * 0.62;
+    tooltip.style.left = flip ? "" : Math.min(xPix + 14, bw - 150) + "px";
+    tooltip.style.right = flip ? (bw - xPix + 14) + "px" : "";
+    tooltip.style.top = "34px";
+  }
+  svg.addEventListener("pointermove", (ev) => showAt(ev.clientX, svg.getBoundingClientRect()));
+  svg.addEventListener("pointerleave", () => {
+    cross.style.display = "none";
+    tooltip.style.display = "none";
+    dots.forEach(d => d.style.display = "none");
+  });
+}
+
+function niceStep(rough) {
+  if (!isFinite(rough) || rough <= 0) return 1;
+  const pow = Math.pow(10, Math.floor(Math.log10(rough)));
+  const n = rough / pow;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * pow;
+}
+
+function seriesColor(i) { return cssVar(SERIES_VARS[i % SERIES_VARS.length]); }
+
+function renderCharts() {
+  const a = activity();
+  const op = selectedOp();
+
+  // Throughput: whole activity → total line + one line per statement; single op → its line.
+  let rateSeries;
+  if (op) {
+    rateSeries = [{ name: op.name, color: seriesColor((a.ops || []).indexOf(op) + 1), t: op.series.t, v: op.series.rate }];
+  } else {
+    rateSeries = [{ name: "all ops", color: seriesColor(0), t: a.series.t, v: a.series.rate }];
+    (a.ops || []).forEach((o, i) => {
+      rateSeries.push({ name: o.name, color: seriesColor(i + 1), t: o.series.t, v: o.series.rate });
+    });
+  }
+  lineChart($("chart-rate"), {
+    series: rateSeries,
+    valueFormat: (v) => fmtNum(v, 0) + "/s",
+  });
+
+  // Latency percentiles for the selected scope.
+  const src = op ? op.series : a.series;
+  const pcts = [["p50", "p50"], ["p95", "p95"], ["p99", "p99"], ["p999", "p99.9"]];
+  const latSeries = pcts
+      .filter(([k]) => src[k])
+      .map(([k, label], i) => ({ name: label, color: seriesColor(i), t: src.t, v: src[k] }));
+  $("latency-sub").textContent = (op ? "successful " + op.name + " operations" : "all operations")
+      + ", milliseconds per reporting interval";
+  lineChart($("chart-latency"), {
+    series: latSeries,
+    log: state.latLog,
+    valueFormat: fmtMs,
+    yTickFormat: fmtMs,
+  });
+
+  // Errors per second. An all-zero series means no errors: show the empty state.
+  let errV = op ? op.series.errorRate : a.series.errorRate;
+  if (errV && !errV.some(v => v != null && isFinite(v) && v > 0)) errV = null;
+  lineChart($("chart-errors"), {
+    series: errV ? [{ name: "errors", color: cssVar("--status-critical"), t: src.t, v: errV }] : [],
+    height: 160,
+    valueFormat: (v) => fmtNum(v) + "/s",
+    emptyText: "No errors recorded for this selection.",
+  });
+
+  // Cumulative errors: activity total plus per-exception-type when available.
+  const cumSeries = [];
+  if (!op && a.series.errorsCum && a.series.errorsCum.some(v => v > 0)) {
+    cumSeries.push({ name: "total", color: cssVar("--status-critical"), t: a.series.t, v: a.series.errorsCum });
+    (a.errorTypes || []).forEach((et, i) => {
+      cumSeries.push({ name: et.name, color: seriesColor(i), t: et.t, v: et.cum });
+    });
+  } else if (op && op.series.errorRate) {
+    let cum = 0;
+    const v = op.series.errorRate.map((r, i) => {
+      if (r == null || !isFinite(r)) return null;
+      const dt = i > 0 ? op.series.t[i] - op.series.t[i - 1] : 0;
+      cum += r * (dt || 0);
+      return Math.round(cum);
+    });
+    if (cum > 0) cumSeries.push({ name: op.name, color: cssVar("--status-critical"), t: op.series.t, v });
+  }
+  $("errtypes-sub").textContent = cumSeries.length > 1
+      ? "running total, by exception type" : "running total over the run";
+  lineChart($("chart-errors-cum"), {
+    series: cumSeries,
+    height: 160,
+    valueFormat: (v) => fmtNum(v, 0),
+    emptyText: "No errors recorded for this selection.",
+  });
+}
+
+function renderTable() {
+  const a = activity();
+  const table = $("ops-table");
+  table.textContent = "";
+  const head = table.createTHead().insertRow();
+  for (const h of ["Statement", "Operations", "Errors", "Avg rate", "p50 avg", "p99 worst"]) {
+    const th = document.createElement("th");
+    th.textContent = h;
+    head.appendChild(th);
+  }
+  const body = table.createTBody();
+  const rows = [["(all) " + a.name, a.summary]].concat((a.ops || []).map(o => [o.name, o.summary]));
+  for (const [name, s] of rows) {
+    const tr = body.insertRow();
+    tr.insertCell().textContent = name;
+    tr.insertCell().textContent = fmtNum(s.totalOps, 0);
+    const errCell = tr.insertCell();
+    if (s.totalErrors > 0) {
+      const span = document.createElement("span");
+      span.className = "err-flag";
+      span.textContent = "⚠ " + fmtNum(s.totalErrors, 0);
+      errCell.appendChild(span);
+    } else {
+      errCell.textContent = "0";
+    }
+    tr.insertCell().textContent = fmtNum(s.avgRate, 0) + "/s";
+    tr.insertCell().textContent = fmtMs(s.p50AvgMs);
+    tr.insertCell().textContent = fmtMs(s.p99MaxMs);
+  }
+}
+
+function renderHeader() {
+  $("title").textContent = DATA.title;
+  document.title = DATA.title;
+  const sub = $("subtitle");
+  sub.textContent = "";
+  const parts = [];
+  if (DATA.session) parts.push("session " + DATA.session);
+  if (DATA.startS) parts.push(fmtDateTime(DATA.startS) + " → " + fmtDateTime(DATA.endS));
+  parts.push(fmtCompact(DATA.totalOps) + " ops");
+  parts.push(DATA.totalErrors > 0 ? fmtCompact(DATA.totalErrors) + " errors" : "no errors");
+  for (const p of parts) {
+    const s = document.createElement("span");
+    s.textContent = p;
+    sub.appendChild(s);
+  }
+  $("gen-info").textContent = " at " + DATA.generatedAt;
+}
+
+function render() {
+  renderControls();
+  renderTiles();
+  renderCharts();
+  renderTable();
+}
+
+$("lat-log").addEventListener("change", (e) => { state.latLog = e.target.checked; renderCharts(); });
+let resizeTimer;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(renderCharts, 150); });
+if (window.matchMedia) {
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => renderCharts());
+}
+
+if (!DATA.activities || !DATA.activities.length) {
+  document.querySelector(".wrap").innerHTML = "<h1>No activity metrics found</h1><p style='margin-top:8px;color:var(--text-secondary)'>The CSV directory contained no per-activity metric series. Make sure nb5 ran with <code>--report-csv-to</code> and the run lasted at least one reporting interval.</p>";
+} else {
+  renderHeader();
+  render();
+}
+</script>
+</body>
+</html>
