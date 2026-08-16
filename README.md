@@ -102,14 +102,40 @@ docker run --rm --network nb5net -v "$PWD/out:/out" -v "$PWD/examples:/workloads
 java -jar target/nb5-visualizer-*.jar out -o report.html --title "cql_keyvalue baseline"
 ```
 
-The input is the CSV directory itself (`out/csv`) or its parent (`out`). Then open
-`report.html` in a browser.
+The input is the CSV directory itself (`out/csv`), its parent (`out`), or a
+**`.zip` archive** of either — handy when someone mails you the metrics of a run.
+Then open `report.html` in a browser.
 
 ```
 Usage: java -jar nb5-visualizer.jar <metrics-dir> [options]
+       java -jar nb5-visualizer.jar <run-a> <run-b> [options]
   -o, --output    output HTML file (default: nb5-report.html)
   --title         report title
+  --labels        names for the two compared runs, e.g. --labels "baseline,tuned"
+                  (default: directory/archive names)
 ```
+
+## Comparing two runs
+
+Pass two inputs (directories or zips, in any mix) to get a comparison report of
+two runs of the same workload — for example a baseline and a run with different
+settings:
+
+```bash
+java -jar target/nb5-visualizer-*.jar baseline-out tuned-out \
+  --labels "baseline,tuned" -o compare.html
+```
+
+The comparison matches activities and statements **by name** and overlays the two
+runs on every chart, with time normalized to *elapsed time from activity start*
+(so runs recorded at different wall-clock times, or of different lengths, line
+up). Summary tiles show both values plus the relative delta, colored by whether
+the change is an improvement (throughput up = good, latency/errors up = bad); the
+latency chart gets a percentile picker (p50/p95/p99/p99.9, one line per run); and
+the statements table shows `A → B` for every figure. A warning banner appears if
+the two runs came from different workload files.
+
+![comparison screenshot](docs/screenshot-compare.png)
 
 ## What the report shows
 
@@ -140,9 +166,10 @@ The integration tests need Docker and pull `cassandra:5`,
 `nosqlbench/nosqlbench:latest`, `eclipse-temurin:11-jre` and `alpine` on first use.
 
 The test fixtures in `src/test/resources/fixtures/` are unmodified output of real
-nb5 runs against Cassandra 5 (`run-witherrors` was produced by the demo workload
-above; `run-short` is a run shorter than the reporting interval, i.e. a single
-snapshot).
+nb5 runs against Cassandra 5 (`run-witherrors` and `run-witherrors-b` were
+produced by the demo workload above at 200/s and 400/s — the pair behind the
+comparison screenshot; `run-short` is a run shorter than the reporting interval,
+i.e. a single snapshot).
 
 ## Input format notes (for the curious)
 

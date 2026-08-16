@@ -25,6 +25,7 @@
     --series-8: #e34948;
     --status-good: #0ca30c;
     --status-critical: #d03b3b;
+    --delta-good: #006300;
     --accent: #2a78d6;
   }
   @media (prefers-color-scheme: dark) {
@@ -47,6 +48,7 @@
       --series-8: #e66767;
       --status-good: #0ca30c;
       --status-critical: #d03b3b;
+      --delta-good: #0ca30c;
       --accent: #3987e5;
     }
   }
@@ -69,6 +71,7 @@
     --series-8: #e66767;
     --status-good: #0ca30c;
     --status-critical: #d03b3b;
+    --delta-good: #0ca30c;
     --accent: #3987e5;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -83,7 +86,16 @@
   .wrap { max-width: 1100px; margin: 0 auto; }
   header h1 { font-size: 22px; font-weight: 650; }
   header .sub { color: var(--text-secondary); margin-top: 2px; font-size: 13px; }
-  header .sub span + span::before { content: "·"; margin: 0 6px; color: var(--text-muted); }
+  header .sub .subline { display: block; }
+  header .sub span.part + span.part::before { content: "·"; margin: 0 6px; color: var(--text-muted); }
+  .runkey { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: baseline; }
+
+  .banner {
+    background: var(--surface-1); border: 1px solid var(--status-critical);
+    border-radius: 10px; padding: 10px 14px; margin-top: 14px; font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .banner strong { color: var(--status-critical); }
 
   .filters {
     display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;
@@ -107,9 +119,10 @@
     box-shadow: inset 0 0 0 1px var(--accent);
     font-weight: 600;
   }
+  .seg.small button { font-size: 12px; padding: 3px 9px; border-radius: 7px; }
   .hint { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
 
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
   .tile {
     background: var(--surface-1); border: 1px solid var(--border);
     border-radius: 10px; padding: 12px 14px;
@@ -120,6 +133,13 @@
   .tile.err-bad .tvalue { color: var(--status-critical); }
   .tile.err-good .tnote::before { content: "✓ "; color: var(--status-good); }
   .tile.err-bad .tnote::before { content: "⚠ "; color: var(--status-critical); }
+  .tile .trun { display: flex; align-items: baseline; gap: 7px; margin-top: 3px; }
+  .tile .trun .rdot { width: 10px; height: 10px; border-radius: 3px; flex: none; align-self: center; }
+  .tile .trun .rname { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+  .tile .trun .rval { font-size: 16px; font-weight: 600; margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tile .tdelta { font-size: 12px; margin-top: 5px; color: var(--text-muted); }
+  .tile .tdelta.good { color: var(--delta-good); font-weight: 600; }
+  .tile .tdelta.bad { color: var(--status-critical); font-weight: 600; }
 
   .card {
     background: var(--surface-1); border: 1px solid var(--border);
@@ -159,6 +179,7 @@
   td:first-child { color: var(--text-primary); }
   tr:last-child td { border-bottom: none; }
   td .err-flag { color: var(--status-critical); font-weight: 600; }
+  td .ab-sep { color: var(--text-muted); margin: 0 4px; }
 
   footer { color: var(--text-muted); font-size: 12px; margin: 18px 0 6px; }
   footer a { color: inherit; }
@@ -170,6 +191,8 @@
     <h1 id="title"></h1>
     <div class="sub" id="subtitle"></div>
   </header>
+
+  <div class="banner" id="banner" hidden></div>
 
   <div class="filters">
     <div class="filter-group">
@@ -189,7 +212,7 @@
     <div class="card-head">
       <div>
         <h2>Throughput</h2>
-        <div class="csub">operations per second, per reporting interval</div>
+        <div class="csub" id="rate-sub">operations per second, per reporting interval</div>
       </div>
     </div>
     <div id="chart-rate"></div>
@@ -202,6 +225,7 @@
         <div class="csub" id="latency-sub">milliseconds, distribution within each reporting interval</div>
       </div>
       <div class="opts">
+        <div class="seg small" id="pct-seg" role="group" aria-label="Percentile" hidden></div>
         <label><input type="checkbox" id="lat-log"> log scale</label>
       </div>
     </div>
@@ -232,7 +256,7 @@
     <div class="card-head">
       <div>
         <h2>Statements summary</h2>
-        <div class="csub">totals for the selected activity</div>
+        <div class="csub" id="table-sub">totals for the selected activity</div>
       </div>
     </div>
     <div style="overflow-x:auto">
@@ -250,16 +274,56 @@
 <script>
 "use strict";
 const DATA = JSON.parse(document.getElementById("nb5-data").textContent);
-const state = { activity: 0, op: -1, latLog: false }; // op -1 = whole activity
-// default to the busiest activity (usually "main" rather than schema/rampup)
-if (DATA.activities && DATA.activities.length) {
-  state.activity = DATA.activities.reduce((best, a, i) =>
-      a.summary.totalOps > DATA.activities[best].summary.totalOps ? i : best, 0);
-}
+const COMPARE = DATA.mode === "compare";
+const RUNS = COMPARE ? DATA.runs : [DATA];
+const RUN_LABELS = COMPARE ? DATA.labels : [""];
 
 const $ = (id) => document.getElementById(id);
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const SERIES_VARS = ["--series-1","--series-2","--series-3","--series-4","--series-5","--series-6","--series-7","--series-8"];
+function seriesColor(i) { return cssVar(SERIES_VARS[i % SERIES_VARS.length]); }
+function runColor(i) { return seriesColor(i); }
+
+// Unified view over one or two runs: activities matched by name, in run-A order.
+const ACTS = (() => {
+  const byName = new Map();
+  RUNS.forEach((run, ri) => {
+    (run.activities || []).forEach(a => {
+      if (!byName.has(a.name)) byName.set(a.name, { name: a.name, per: RUNS.map(() => null) });
+      byName.get(a.name).per[ri] = a;
+    });
+  });
+  return [...byName.values()];
+})();
+
+const PCTS = [["p50", "p50"], ["p95", "p95"], ["p99", "p99"], ["p999", "p99.9"]];
+const state = { activity: 0, op: null, latLog: false, pct: "p99" }; // op null = whole activity
+if (ACTS.length) {
+  // default to the busiest activity (usually "main" rather than schema/rampup)
+  const opsOf = (v) => v.per.reduce((s, a) => s + (a ? a.summary.totalOps : 0), 0);
+  state.activity = ACTS.reduce((best, v, i) => opsOf(v) > opsOf(ACTS[best]) ? i : best, 0);
+}
+
+function view() { return ACTS[state.activity]; }
+function opNames(v) {
+  const names = [];
+  v.per.forEach(a => (a && a.ops || []).forEach(o => {
+    if (!names.includes(o.name)) names.push(o.name);
+  }));
+  return names.sort();
+}
+function opOf(act, name) {
+  return act && act.ops ? act.ops.find(o => o.name === name) || null : null;
+}
+// selected scope for run ri: {series, summary} or null
+function scopeOf(ri) {
+  const a = view().per[ri];
+  if (!a) return null;
+  if (state.op === null) return a;
+  return opOf(a, state.op);
+}
+
+// ------------------------------------------------------------- formatting
 
 function fmtNum(v, digits) {
   if (v == null || !isFinite(v)) return "–";
@@ -287,17 +351,18 @@ function fmtTime(epochS) {
 function fmtDateTime(epochS) {
   return new Date(epochS * 1000).toLocaleString([], { hour12: false });
 }
+function fmtElapsed(s) {
+  if (s == null || !isFinite(s)) return "–";
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  const ss = String(sec).padStart(2, "0");
+  return h ? h + ":" + String(m).padStart(2, "0") + ":" + ss : m + ":" + ss;
+}
 function fmtDuration(s) {
   if (s == null || !isFinite(s)) return "–";
   s = Math.round(s);
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   return (h ? h + "h " : "") + (h || m ? m + "m " : "") + sec + "s";
-}
-
-function activity() { return DATA.activities[state.activity]; }
-function selectedOp() {
-  const a = activity();
-  return state.op >= 0 && a.ops && a.ops[state.op] ? a.ops[state.op] : null;
 }
 
 // ------------------------------------------------------------------ controls
@@ -314,21 +379,29 @@ function segButton(label, pressed, onClick) {
 function renderControls() {
   const actSeg = $("activity-seg");
   actSeg.textContent = "";
-  DATA.activities.forEach((a, i) => {
-    actSeg.appendChild(segButton(a.name, i === state.activity, () => {
-      state.activity = i; state.op = -1; render();
+  ACTS.forEach((v, i) => {
+    actSeg.appendChild(segButton(v.name, i === state.activity, () => {
+      state.activity = i; state.op = null; render();
     }));
   });
 
   const opSeg = $("op-seg");
   opSeg.textContent = "";
-  const a = activity();
-  const ops = a.ops || [];
-  opSeg.appendChild(segButton("All statements", state.op === -1, () => { state.op = -1; render(); }));
-  ops.forEach((op, i) => {
-    opSeg.appendChild(segButton(op.name, i === state.op, () => { state.op = i; render(); }));
+  const names = opNames(view());
+  opSeg.appendChild(segButton("All statements", state.op === null, () => { state.op = null; render(); }));
+  names.forEach(name => {
+    opSeg.appendChild(segButton(name, name === state.op, () => { state.op = name; render(); }));
   });
-  $("op-hint").hidden = ops.length > 0;
+  $("op-hint").hidden = names.length > 0;
+
+  const pctSeg = $("pct-seg");
+  pctSeg.hidden = !COMPARE;
+  if (COMPARE) {
+    pctSeg.textContent = "";
+    PCTS.forEach(([key, label]) => {
+      pctSeg.appendChild(segButton(label, key === state.pct, () => { state.pct = key; renderCharts(); renderControls(); }));
+    });
+  }
 }
 
 // --------------------------------------------------------------------- tiles
@@ -343,37 +416,90 @@ function tile(label, value, note, cls) {
   return d;
 }
 
+// betterWhen: "higher" | "lower" | null (no judgement)
+function compareTile(label, values, fmt, betterWhen) {
+  const d = document.createElement("div");
+  d.className = "tile";
+  const l = document.createElement("div"); l.className = "tlabel"; l.textContent = label;
+  d.appendChild(l);
+  values.forEach((v, i) => {
+    const row = document.createElement("div"); row.className = "trun";
+    const dot = document.createElement("span"); dot.className = "rdot";
+    dot.style.background = runColor(i);
+    const name = document.createElement("span"); name.className = "rname"; name.textContent = RUN_LABELS[i];
+    const val = document.createElement("span"); val.className = "rval"; val.textContent = fmt(v);
+    row.appendChild(dot); row.appendChild(name); row.appendChild(val);
+    d.appendChild(row);
+  });
+  const [a, b] = values;
+  const delta = document.createElement("div"); delta.className = "tdelta";
+  if (a != null && b != null && isFinite(a) && isFinite(b) && a !== 0) {
+    const pct = (b - a) / Math.abs(a) * 100;
+    const sign = pct >= 0 ? "+" : "";
+    // the arrow follows the direction of the change; the color says whether it
+    // is an improvement
+    const arrow = Math.abs(pct) < 0.5 ? "" : (pct > 0 ? "▲ " : "▼ ");
+    delta.textContent = arrow + sign + fmtNum(pct, Math.abs(pct) >= 10 ? 0 : 1) + "% vs " + RUN_LABELS[0];
+    if (betterWhen && Math.abs(pct) >= 0.5) {
+      const improved = betterWhen === "higher" ? pct > 0 : pct < 0;
+      delta.classList.add(improved ? "good" : "bad");
+    }
+  } else {
+    delta.textContent = " ";
+  }
+  d.appendChild(delta);
+  return d;
+}
+
 function renderTiles() {
-  const a = activity();
-  const op = selectedOp();
-  const s = op ? op.summary : a.summary;
   const tiles = $("tiles");
   tiles.textContent = "";
-  const scope = op ? "statement " + op.name : "activity " + a.name;
-  tiles.appendChild(tile("Operations", fmtCompact(s.totalOps), scope));
-  tiles.appendChild(tile("Avg rate", fmtNum(s.avgRate, 0) + "/s",
-      a.summary.maxRate != null && !op ? "peak " + fmtNum(a.summary.maxRate, 0) + "/s" : ""));
-  tiles.appendChild(tile("p50 latency", fmtMs(s.p50AvgMs), "count-weighted average"));
-  tiles.appendChild(tile("p99 latency", fmtMs(s.p99MaxMs), "worst interval"));
-  const errCls = s.totalErrors > 0 ? "err-bad" : "err-good";
-  tiles.appendChild(tile("Errors", fmtCompact(s.totalErrors),
-      s.totalErrors > 0 ? "failed operations" : "no errors", errCls));
-  if (!op) {
-    tiles.appendChild(tile("Duration", fmtDuration(s.durationS),
-        a.rateLimited ? "rate-limited run" : "unthrottled"));
+  const scopes = RUNS.map((_, ri) => scopeOf(ri));
+
+  if (!COMPARE) {
+    const s = scopes[0] ? scopes[0].summary : null;
+    if (!s) return;
+    const a = view().per[0];
+    const scopeName = state.op ? "statement " + state.op : "activity " + view().name;
+    tiles.appendChild(tile("Operations", fmtCompact(s.totalOps), scopeName));
+    tiles.appendChild(tile("Avg rate", fmtNum(s.avgRate, 0) + "/s",
+        a.summary.maxRate != null && !state.op ? "peak " + fmtNum(a.summary.maxRate, 0) + "/s" : ""));
+    tiles.appendChild(tile("p50 latency", fmtMs(s.p50AvgMs), "count-weighted average"));
+    tiles.appendChild(tile("p99 latency", fmtMs(s.p99MaxMs), "worst interval"));
+    const errCls = s.totalErrors > 0 ? "err-bad" : "err-good";
+    tiles.appendChild(tile("Errors", fmtCompact(s.totalErrors),
+        s.totalErrors > 0 ? "failed operations" : "no errors", errCls));
+    if (!state.op) {
+      tiles.appendChild(tile("Duration", fmtDuration(s.durationS),
+          a.rateLimited ? "rate-limited run" : "unthrottled"));
+    }
+    return;
+  }
+
+  const sum = (key) => scopes.map(s => s && s.summary ? s.summary[key] : null);
+  tiles.appendChild(compareTile("Operations", sum("totalOps"), fmtCompact, null));
+  tiles.appendChild(compareTile("Avg rate", sum("avgRate"), v => v == null ? "–" : fmtNum(v, 0) + "/s", "higher"));
+  tiles.appendChild(compareTile("p50 latency", sum("p50AvgMs"), fmtMs, "lower"));
+  tiles.appendChild(compareTile("p99 latency", sum("p99MaxMs"), fmtMs, "lower"));
+  tiles.appendChild(compareTile("Errors", sum("totalErrors"), fmtCompact, "lower"));
+  if (state.op === null) {
+    tiles.appendChild(compareTile("Duration",
+        view().per.map(a => a ? a.summary.durationS : null), fmtDuration, null));
   }
 }
 
 // -------------------------------------------------------------------- charts
 
 // Minimal SVG multi-series line chart with crosshair + tooltip.
-// series: [{ name, color, t:[epochS], v:[number|null] }]
+// series: [{ name, color, t:[x], v:[number|null] }]; x is epoch seconds
+// (single mode) or elapsed seconds (compare mode) — opts.xFormat renders it.
 function lineChart(container, opts) {
   container.textContent = "";
   const box = document.createElement("div");
   box.className = "chart-box";
   container.appendChild(box);
 
+  const xFormat = opts.xFormat || fmtTime;
   const series = opts.series.filter(s => s && s.v && s.v.some(x => x != null && isFinite(x)));
   if (!series.length) {
     const e = document.createElement("div");
@@ -472,7 +598,7 @@ function lineChart(container, opts) {
     lbl.setAttribute("text-anchor", i === 0 ? "start" : (i === nXTicks ? "end" : "middle"));
     lbl.setAttribute("fill", mutedColor);
     lbl.setAttribute("font-size", "11");
-    lbl.textContent = fmtTime(tv);
+    lbl.textContent = xFormat(tv);
     svg.appendChild(lbl);
   }
 
@@ -524,6 +650,23 @@ function lineChart(container, opts) {
   tooltip.className = "tooltip";
   box.appendChild(tooltip);
 
+  // When comparing runs their sampling grids rarely line up exactly, so each
+  // series snaps to its own nearest sample within half its sampling step.
+  const tolOf = (s) => {
+    if (s.t.length < 2) return 3;
+    const deltas = s.t.slice(1).map((t, i) => t - s.t[i]).sort((a, b) => a - b);
+    return deltas[Math.floor(deltas.length / 2)] * 0.5 + 0.51;
+  };
+  const tols = series.map(tolOf);
+  const closestIndex = (s, target, tol) => {
+    let best = -1, bestDist = Infinity;
+    for (let i = 0; i < s.t.length; i++) {
+      const d = Math.abs(s.t[i] - target);
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    return bestDist <= tol ? best : -1;
+  };
+
   const allTs = [...new Set(series.flatMap(s => s.t))].sort((a, b) => a - b);
   function showAt(clientX, rect) {
     const px = (clientX - rect.left) / rect.width * width;
@@ -535,13 +678,13 @@ function lineChart(container, opts) {
     tooltip.textContent = "";
     const time = document.createElement("div");
     time.className = "tt-time";
-    time.textContent = fmtTime(nearest);
+    time.textContent = xFormat(nearest);
     tooltip.appendChild(time);
     series.forEach((s, si) => {
-      const i = s.t.indexOf(nearest);
+      const i = closestIndex(s, nearest, tols[si]);
       const v = i >= 0 ? s.v[i] : null;
       if (v != null && isFinite(v)) {
-        dots[si].setAttribute("cx", x(nearest)); dots[si].setAttribute("cy", y(v));
+        dots[si].setAttribute("cx", x(s.t[i])); dots[si].setAttribute("cy", y(v));
         dots[si].style.display = "";
       } else {
         dots[si].style.display = "none";
@@ -582,11 +725,99 @@ function niceStep(rough) {
   return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * pow;
 }
 
-function seriesColor(i) { return cssVar(SERIES_VARS[i % SERIES_VARS.length]); }
+// elapsed-seconds x values for a scope of run ri (compare mode)
+function elapsedT(ri, scope) {
+  const a = view().per[ri];
+  return scope.series.t.map(t => t - a.startS);
+}
 
 function renderCharts() {
-  const a = activity();
-  const op = selectedOp();
+  const scopeName = state.op === null ? "all statements" : state.op;
+
+  if (COMPARE) {
+    const scopes = RUNS.map((_, ri) => scopeOf(ri));
+
+    // Throughput: one line per run for the selected scope.
+    const rateSeries = [];
+    scopes.forEach((s, ri) => {
+      if (s && s.series.rate) {
+        rateSeries.push({ name: RUN_LABELS[ri], color: runColor(ri), t: elapsedT(ri, s), v: s.series.rate });
+      }
+    });
+    $("rate-sub").textContent = scopeName + ", operations per second, by elapsed time";
+    lineChart($("chart-rate"), {
+      series: rateSeries, xFormat: fmtElapsed,
+      valueFormat: (v) => fmtNum(v, 0) + "/s",
+    });
+
+    // Latency: the selected percentile, one line per run.
+    const pctLabel = PCTS.find(([k]) => k === state.pct)[1];
+    const latSeries = [];
+    scopes.forEach((s, ri) => {
+      if (s && s.series[state.pct]) {
+        latSeries.push({ name: RUN_LABELS[ri], color: runColor(ri), t: elapsedT(ri, s), v: s.series[state.pct] });
+      }
+    });
+    $("latency-sub").textContent = pctLabel + " of " + (state.op === null ? "all operations" : "successful " + state.op + " operations")
+        + ", milliseconds per reporting interval";
+    lineChart($("chart-latency"), {
+      series: latSeries, xFormat: fmtElapsed,
+      log: state.latLog,
+      valueFormat: fmtMs,
+      yTickFormat: fmtMs,
+    });
+
+    // Errors per second, one line per run.
+    const errSeries = [];
+    scopes.forEach((s, ri) => {
+      const v = s && s.series.errorRate;
+      if (v && v.some(x => x != null && isFinite(x) && x > 0)) {
+        errSeries.push({ name: RUN_LABELS[ri], color: runColor(ri), t: elapsedT(ri, s), v });
+      }
+    });
+    lineChart($("chart-errors"), {
+      series: errSeries, xFormat: fmtElapsed,
+      height: 160,
+      valueFormat: (v) => fmtNum(v) + "/s",
+      emptyText: "No errors recorded in either run for this selection.",
+    });
+
+    // Cumulative errors, one line per run (activity scope only).
+    const cumSeries = [];
+    if (state.op === null) {
+      scopes.forEach((s, ri) => {
+        const v = s && s.series.errorsCum;
+        if (v && v.some(x => x != null && isFinite(x) && x > 0)) {
+          cumSeries.push({ name: RUN_LABELS[ri], color: runColor(ri), t: elapsedT(ri, s), v });
+        }
+      });
+    } else {
+      scopes.forEach((s, ri) => {
+        if (!s || !s.series.errorRate) return;
+        let cum = 0;
+        const v = s.series.errorRate.map((r, i) => {
+          if (r == null || !isFinite(r)) return null;
+          const dt = i > 0 ? s.series.t[i] - s.series.t[i - 1] : 0;
+          cum += r * (dt || 0);
+          return Math.round(cum);
+        });
+        if (cum > 0) cumSeries.push({ name: RUN_LABELS[ri], color: runColor(ri), t: elapsedT(ri, s), v });
+      });
+    }
+    $("errtypes-sub").textContent = "running total over the run";
+    lineChart($("chart-errors-cum"), {
+      series: cumSeries, xFormat: fmtElapsed,
+      height: 160,
+      valueFormat: (v) => fmtNum(v, 0),
+      emptyText: "No errors recorded in either run for this selection.",
+    });
+    return;
+  }
+
+  // ----- single-run mode -----
+  const a = view().per[0];
+  const op = state.op === null ? null : opOf(a, state.op);
+  const src = op ? op.series : a.series;
 
   // Throughput: whole activity → total line + one line per statement; single op → its line.
   let rateSeries;
@@ -598,15 +829,14 @@ function renderCharts() {
       rateSeries.push({ name: o.name, color: seriesColor(i + 1), t: o.series.t, v: o.series.rate });
     });
   }
+  $("rate-sub").textContent = "operations per second, per reporting interval";
   lineChart($("chart-rate"), {
     series: rateSeries,
     valueFormat: (v) => fmtNum(v, 0) + "/s",
   });
 
   // Latency percentiles for the selected scope.
-  const src = op ? op.series : a.series;
-  const pcts = [["p50", "p50"], ["p95", "p95"], ["p99", "p99"], ["p999", "p99.9"]];
-  const latSeries = pcts
+  const latSeries = PCTS
       .filter(([k]) => src[k])
       .map(([k, label], i) => ({ name: label, color: seriesColor(i), t: src.t, v: src[k] }));
   $("latency-sub").textContent = (op ? "successful " + op.name + " operations" : "all operations")
@@ -655,8 +885,22 @@ function renderCharts() {
   });
 }
 
+// --------------------------------------------------------------------- table
+
+function errCell(cell, errors) {
+  if (errors == null) {
+    cell.appendChild(document.createTextNode("–"));
+  } else if (errors > 0) {
+    const span = document.createElement("span");
+    span.className = "err-flag";
+    span.textContent = "⚠ " + fmtNum(errors, 0);
+    cell.appendChild(span);
+  } else {
+    cell.appendChild(document.createTextNode("0"));
+  }
+}
+
 function renderTable() {
-  const a = activity();
   const table = $("ops-table");
   table.textContent = "";
   const head = table.createTHead().insertRow();
@@ -666,40 +910,108 @@ function renderTable() {
     head.appendChild(th);
   }
   const body = table.createTBody();
-  const rows = [["(all) " + a.name, a.summary]].concat((a.ops || []).map(o => [o.name, o.summary]));
-  for (const [name, s] of rows) {
+  const v = view();
+
+  const rows = [["(all) " + v.name, v.per.map(a => a ? a.summary : null)]];
+  for (const name of opNames(v)) {
+    rows.push([name, v.per.map(a => {
+      const o = opOf(a, name);
+      return o ? o.summary : null;
+    })]);
+  }
+
+  const cellAB = (tr, fmt, key, errStyle) => {
+    const cell = tr.insertCell();
+    view().per.forEach((_, ri) => {
+      if (COMPARE && ri > 0) {
+        const sep = document.createElement("span");
+        sep.className = "ab-sep";
+        sep.textContent = "→";
+        cell.appendChild(sep);
+      }
+      const s = rowsCurrent[ri];
+      if (errStyle) {
+        errCell(cell, s ? s[key] : null);
+      } else {
+        cell.appendChild(document.createTextNode(s ? fmt(s[key]) : "–"));
+      }
+      if (!COMPARE) return;
+    });
+  };
+
+  let rowsCurrent;
+  for (const [name, summaries] of rows) {
+    rowsCurrent = COMPARE ? summaries : [summaries[0]];
     const tr = body.insertRow();
     tr.insertCell().textContent = name;
-    tr.insertCell().textContent = fmtNum(s.totalOps, 0);
-    const errCell = tr.insertCell();
-    if (s.totalErrors > 0) {
-      const span = document.createElement("span");
-      span.className = "err-flag";
-      span.textContent = "⚠ " + fmtNum(s.totalErrors, 0);
-      errCell.appendChild(span);
-    } else {
-      errCell.textContent = "0";
-    }
-    tr.insertCell().textContent = fmtNum(s.avgRate, 0) + "/s";
-    tr.insertCell().textContent = fmtMs(s.p50AvgMs);
-    tr.insertCell().textContent = fmtMs(s.p99MaxMs);
+    cellAB(tr, v2 => fmtNum(v2, 0), "totalOps");
+    cellAB(tr, null, "totalErrors", true);
+    cellAB(tr, v2 => v2 == null || !isFinite(v2) ? "–" : fmtNum(v2, 0) + "/s", "avgRate");
+    cellAB(tr, fmtMs, "p50AvgMs");
+    cellAB(tr, fmtMs, "p99MaxMs");
   }
+  $("table-sub").textContent = COMPARE
+      ? "totals for the selected activity, " + RUN_LABELS[0] + " → " + RUN_LABELS[1]
+      : "totals for the selected activity";
 }
+
+// -------------------------------------------------------------------- header
 
 function renderHeader() {
   $("title").textContent = DATA.title;
   document.title = DATA.title;
   const sub = $("subtitle");
   sub.textContent = "";
-  const parts = [];
-  if (DATA.session) parts.push("session " + DATA.session);
-  if (DATA.startS) parts.push(fmtDateTime(DATA.startS) + " → " + fmtDateTime(DATA.endS));
-  parts.push(fmtCompact(DATA.totalOps) + " ops");
-  parts.push(DATA.totalErrors > 0 ? fmtCompact(DATA.totalErrors) + " errors" : "no errors");
-  for (const p of parts) {
-    const s = document.createElement("span");
-    s.textContent = p;
-    sub.appendChild(s);
+
+  const addParts = (container, parts) => {
+    for (const p of parts) {
+      const s = document.createElement("span");
+      s.className = "part";
+      s.textContent = p;
+      container.appendChild(s);
+    }
+  };
+
+  if (!COMPARE) {
+    const parts = [];
+    if (DATA.session) parts.push("session " + DATA.session);
+    if (DATA.startS) parts.push(fmtDateTime(DATA.startS) + " → " + fmtDateTime(DATA.endS));
+    parts.push(fmtCompact(DATA.totalOps) + " ops");
+    parts.push(DATA.totalErrors > 0 ? fmtCompact(DATA.totalErrors) + " errors" : "no errors");
+    addParts(sub, parts);
+  } else {
+    RUNS.forEach((run, ri) => {
+      const line = document.createElement("span");
+      line.className = "subline";
+      const key = document.createElement("span");
+      key.className = "runkey";
+      key.style.background = runColor(ri);
+      line.appendChild(key);
+      const parts = [RUN_LABELS[ri]];
+      if (run.session) parts.push("session " + run.session);
+      if (run.startS) parts.push(fmtDateTime(run.startS));
+      parts.push(fmtCompact(run.totalOps) + " ops");
+      parts.push(run.totalErrors > 0 ? fmtCompact(run.totalErrors) + " errors" : "no errors");
+      addParts(line, parts);
+      sub.appendChild(line);
+    });
+
+    // warn when the two runs don't look like the same workload
+    const workloads = RUNS.map(run => {
+      const acts = run.activities || [];
+      return acts.length ? acts.map(a => a.workload).filter(Boolean)[0] : null;
+    });
+    if (workloads[0] && workloads[1] && workloads[0] !== workloads[1]) {
+      const banner = $("banner");
+      banner.hidden = false;
+      banner.textContent = "";
+      const strong = document.createElement("strong");
+      strong.textContent = "Different workloads: ";
+      banner.appendChild(strong);
+      banner.appendChild(document.createTextNode(
+          "these runs used '" + workloads[0] + "' and '" + workloads[1]
+          + "'. The comparison matches activities and statements by name, so make sure it is meaningful."));
+    }
   }
   $("gen-info").textContent = " at " + DATA.generatedAt;
 }
@@ -718,7 +1030,7 @@ if (window.matchMedia) {
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => renderCharts());
 }
 
-if (!DATA.activities || !DATA.activities.length) {
+if (!ACTS.length) {
   document.querySelector(".wrap").innerHTML = "<h1>No activity metrics found</h1><p style='margin-top:8px;color:var(--text-secondary)'>The CSV directory contained no per-activity metric series. Make sure nb5 ran with <code>--report-csv-to</code> and the run lasted at least one reporting interval.</p>";
 } else {
   renderHeader();

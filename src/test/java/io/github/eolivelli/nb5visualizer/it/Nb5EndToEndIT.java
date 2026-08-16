@@ -106,5 +106,17 @@ class Nb5EndToEndIT {
         assertTrue(html.contains("\"errorTypes\""), "exception-type breakdown present");
         // the bad_select statement fails on every execution, so errors must be nonzero
         assertTrue(html.matches("(?s).*\"totalErrors\":[1-9].*"), "errors were recorded");
+
+        // compare mode: the fresh run against the recorded fixture of the same workload
+        Path compare = workDir.resolve("compare.html");
+        int compareExit = Main.run(new String[]{
+                workDir.resolve("csv").toString(),
+                "src/test/resources/fixtures/run-witherrors",
+                "--labels", "fresh,recorded",
+                "-o", compare.toString()});
+        assertEquals(0, compareExit);
+        String compareHtml = Files.readString(compare, StandardCharsets.UTF_8);
+        assertTrue(compareHtml.contains("\"mode\":\"compare\""), "compare mode report");
+        assertTrue(compareHtml.contains("\"labels\":[\"fresh\",\"recorded\"]"), "labels embedded");
     }
 }

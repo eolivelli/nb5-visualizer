@@ -32,23 +32,47 @@ public final class CsvMetricsParser {
     public static final String MANIFEST_FILE = "metrics-files.jsonl";
 
     /**
-     * Accepts either the CSV directory itself, or a parent directory that
-     * contains a {@code csv/} subdirectory (e.g. the directory passed to the
-     * example commands in the README).
+     * Accepts the CSV directory itself, a parent directory containing a
+     * {@code csv/} subdirectory (e.g. the directory passed to the example
+     * commands in the README), or — because zip archives usually contain one
+     * top-level folder — a directory whose single level of children contains
+     * either of those.
      */
     public static Path resolveCsvDir(Path input) {
         if (Files.isDirectory(input)) {
-            if (Files.exists(input.resolve(MANIFEST_FILE)) || containsCsvFiles(input)) {
-                return input;
+            Path direct = csvDirAt(input);
+            if (direct != null) {
+                return direct;
             }
-            Path sub = input.resolve("csv");
-            if (Files.isDirectory(sub)
-                    && (Files.exists(sub.resolve(MANIFEST_FILE)) || containsCsvFiles(sub))) {
-                return sub;
+            try (Stream<Path> children = Files.list(input)) {
+                List<Path> dirs = children.filter(Files::isDirectory)
+                        .filter(p -> !"logs".equals(String.valueOf(p.getFileName()).replace("/", "")))
+                        .sorted()
+                        .collect(Collectors.toList());
+                for (Path child : dirs) {
+                    Path nested = csvDirAt(child);
+                    if (nested != null) {
+                        return nested;
+                    }
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
         throw new IllegalArgumentException("No NoSQLBench CSV metrics found in " + input
                 + " (expected " + MANIFEST_FILE + " or *.csv files, either directly or in a csv/ subdirectory)");
+    }
+
+    private static Path csvDirAt(Path dir) {
+        if (Files.exists(dir.resolve(MANIFEST_FILE)) || containsCsvFiles(dir)) {
+            return dir;
+        }
+        Path sub = dir.resolve("csv");
+        if (Files.isDirectory(sub)
+                && (Files.exists(sub.resolve(MANIFEST_FILE)) || containsCsvFiles(sub))) {
+            return sub;
+        }
+        return null;
     }
 
     private static boolean containsCsvFiles(Path dir) {
@@ -57,6 +81,24 @@ public final class CsvMetricsParser {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * Parses a metrics directory or a zip archive of one. Zip archives are read
+     * in place through the JDK zip filesystem; no extraction to disk.
+     */
+    public List<MetricSeries> parseInput(Path input) throws IOException {
+        if (Files.isRegularFile(input)
+                && input.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".zip")) {
+            try (java.nio.file.FileSystem zip = java.nio.file.FileSystems.newFileSystem(input, (ClassLoader) null)) {
+                return parseDirectory(zip.getPath("/"));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("In zip archive " + input + ": " + e.getMessage());
+            } catch (java.util.zip.ZipError | java.nio.file.ProviderNotFoundException e) {
+                throw new IllegalArgumentException("Cannot read zip archive " + input + ": " + e);
+            }
+        }
+        return parseDirectory(input);
     }
 
     public List<MetricSeries> parseDirectory(Path input) throws IOException {
