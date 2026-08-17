@@ -33,12 +33,15 @@ public final class SshConnection implements AutoCloseable {
     private static final List<String> DEFAULT_KEYS = List.of("id_ed25519", "id_rsa", "id_ecdsa");
 
     private final SshClient client;
+    private final ClientSession session;
     private final SftpFileSystem fileSystem;
     private final String description;
     private volatile boolean closed;
 
-    private SshConnection(SshClient client, SftpFileSystem fileSystem, String description) {
+    private SshConnection(SshClient client, ClientSession session, SftpFileSystem fileSystem,
+                          String description) {
         this.client = client;
+        this.session = session;
         this.fileSystem = fileSystem;
         this.description = description;
     }
@@ -95,7 +98,7 @@ public final class SshConnection implements AutoCloseable {
             Verbose.log("authenticated, opening SFTP filesystem…");
             SftpFileSystem fs = new SftpFileSystemProvider(client).newFileSystem(session);
             Verbose.log("SFTP ready, remote home is " + fs.getDefaultDir());
-            return new SshConnection(client, fs, target.toString());
+            return new SshConnection(client, session, fs, target.toString());
         } catch (IOException | GeneralSecurityException | RuntimeException e) {
             if (session != null) {
                 session.close(false);
@@ -166,6 +169,40 @@ public final class SshConnection implements AutoCloseable {
     /** "user@host[:port]", for window titles and messages. */
     public String description() {
         return description;
+    }
+
+    /**
+     * Runs a command on the remote host over an exec channel and returns its
+     * stdout. Throws on a non-zero exit (with the remote stderr as message),
+     * when the server does not allow command execution, or after a bounded
+     * wait — always leaving the session itself usable.
+     */
+    public String exec(String command) throws IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        java.io.ByteArrayOutputStream err = new java.io.ByteArrayOutputStream();
+        try (org.apache.sshd.client.channel.ChannelExec channel =
+                     session.createExecChannel(command)) {
+            // ask for an explicit reply to the exec request, so a server that
+            // does not allow command execution fails the open() fast instead
+            // of leaving the channel dangling
+            org.apache.sshd.core.CoreModuleProperties.REQUEST_EXEC_REPLY.set(channel, true);
+            channel.setOut(out);
+            channel.setErr(err);
+            channel.open().verify(Duration.ofSeconds(15));
+            java.util.Set<org.apache.sshd.client.channel.ClientChannelEvent> events =
+                    channel.waitFor(java.util.EnumSet.of(
+                                    org.apache.sshd.client.channel.ClientChannelEvent.CLOSED),
+                            Duration.ofMinutes(5));
+            if (events.contains(org.apache.sshd.client.channel.ClientChannelEvent.TIMEOUT)) {
+                throw new IOException("remote command timed out after 5m: " + command);
+            }
+            Integer status = channel.getExitStatus();
+            if (status == null || status != 0) {
+                throw new IOException("remote command exited with " + status + ": "
+                        + err.toString("UTF-8").trim());
+            }
+            return out.toString("UTF-8");
+        }
     }
 
     @Override

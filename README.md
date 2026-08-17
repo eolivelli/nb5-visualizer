@@ -204,8 +204,13 @@ java -jar nb5-visualizer-cli/target/nb5-visualizer-cli-*.jar \
   a **changed** key is always rejected.
 - Selected inputs (metrics directories or `.zip` archives) are fetched to a
   local temp directory, deleted on exit; the HTML report is always written
-  locally. The SSH support (Apache Mina SSHD) is bundled in the TUI and CLI
-  jars — the core jar stays dependency-free and local-only.
+  locally. Directories are transferred as **one compressed archive**: `tar -czf`
+  runs on the remote host, the single `.tgz` is downloaded and extracted
+  locally, and the remote temp file is removed — much faster than per-file
+  SFTP on high-latency links (VPNs). If the server forbids command execution
+  or `tar` is missing on either side, it falls back to per-file copy
+  automatically. The SSH support (Apache Mina SSHD) is bundled in the TUI and
+  CLI jars — the core jar stays dependency-free and local-only.
 
 ## Comparing two runs
 

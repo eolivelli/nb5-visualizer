@@ -204,7 +204,7 @@ final class VisualizerTui {
             List<Path> local = new ArrayList<>();
             try {
                 for (Path input : inputs) {
-                    local.add(RemoteDownloader.download(input, tempRoot, downloadIndex++));
+                    local.add(RemoteDownloader.download(remote, input, tempRoot, downloadIndex++));
                 }
             } catch (IOException | RuntimeException e) {
                 gui.getGUIThread().invokeLater(() -> {

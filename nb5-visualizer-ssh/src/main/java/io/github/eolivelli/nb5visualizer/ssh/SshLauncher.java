@@ -69,7 +69,8 @@ public final class SshLauncher {
                             + ": " + remote);
                 }
                 System.out.println("Downloading " + conn.description() + ":" + remote + " …");
-                rewritten[i] = RemoteDownloader.download(remote, tempRoot, inputIndex++).toString();
+                rewritten[i] = RemoteDownloader.download(conn, remote, tempRoot, inputIndex++)
+                        .toString();
             }
         }
         return rewritten;

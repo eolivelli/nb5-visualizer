@@ -58,17 +58,18 @@ class SshConnectionTest {
             assertTrue(Files.isDirectory(subdir));
             assertThrows(IOException.class, () -> SshLauncher.resolveBaseDir(conn, "nope"));
 
-            // recursive dir download preserves tree and bytes
+            // recursive dir download preserves tree and bytes; this server has
+            // no exec channel, so this exercises the per-file fallback path
             Path localRoot = work.resolve("downloads");
             Files.createDirectories(localRoot);
-            Path dir = RemoteDownloader.download(
+            Path dir = RemoteDownloader.download(conn,
                     conn.fileSystem().getPath("/run-b"), localRoot, 0);
             assertEquals("run-b", dir.getFileName().toString());
             assertArrayEquals(Files.readAllBytes(fixture.resolve("run-b/csv/metric.csv")),
                     Files.readAllBytes(dir.resolve("csv/metric.csv")));
 
             // single zip download
-            Path zip = RemoteDownloader.download(
+            Path zip = RemoteDownloader.download(conn,
                     conn.fileSystem().getPath("/archive.zip"), localRoot, 1);
             assertArrayEquals(new byte[]{1, 2, 3, 4}, Files.readAllBytes(zip));
         }
@@ -99,6 +100,41 @@ class SshConnectionTest {
             assertTrue(e.getMessage().contains("IDENTIFICATION HAS CHANGED"),
                     "unexpected error: " + e.getMessage());
         }
+    }
+
+    @Test
+    void directoryDownloadsAsOneRemoteArchive(@TempDir Path fixture, @TempDir Path work)
+            throws Exception {
+        Files.createDirectories(fixture.resolve("run-x/csv"));
+        Files.write(fixture.resolve("run-x/csv/metric with space.csv"),
+                "t,count\n7,9\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(fixture.resolve("run-x/summary.txt"), new byte[]{42});
+
+        java.io.PrintStream originalErr = System.err;
+        java.io.ByteArrayOutputStream captured = new java.io.ByteArrayOutputStream();
+        System.setErr(new java.io.PrintStream(captured, true, "UTF-8"));
+        Verbose.enable();
+        try (SshTestServer server = new SshTestServer(fixture, work,
+                work.resolve("hostkey.ser"), 0, true);
+             SshConnection conn = SshConnection.open(server.target(), server.clientKeyFile,
+                     work.resolve("known_hosts"), ACCEPT, NO_PASSPHRASE)) {
+            Path localRoot = work.resolve("downloads");
+            Files.createDirectories(localRoot);
+            // exec-enabled server serves SFTP from the real root, so real paths work
+            Path dir = RemoteDownloader.download(conn,
+                    conn.fileSystem().getPath(fixture.resolve("run-x").toString()), localRoot, 0);
+            assertArrayEquals(
+                    Files.readAllBytes(fixture.resolve("run-x/csv/metric with space.csv")),
+                    Files.readAllBytes(dir.resolve("csv/metric with space.csv")));
+            assertArrayEquals(new byte[]{42}, Files.readAllBytes(dir.resolve("summary.txt")));
+        } finally {
+            Verbose.disable();
+            System.setErr(originalErr);
+        }
+        String log = new String(captured.toByteArray(), StandardCharsets.UTF_8);
+        assertTrue(log.contains("as one archive"), "expected the tar fast path, log was:\n" + log);
+        assertTrue(log.contains("removed remote temp file"),
+                "expected remote temp cleanup, log was:\n" + log);
     }
 
     @Test

@@ -4,6 +4,7 @@ import org.apache.sshd.common.config.keys.KeyUtils;
 import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory;
 import org.apache.sshd.server.SshServer;
 import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
+import org.apache.sshd.server.shell.ProcessShellFactory;
 import org.apache.sshd.sftp.server.SftpSubsystemFactory;
 
 import java.io.IOException;
@@ -31,6 +32,16 @@ final class SshTestServer implements AutoCloseable {
 
     SshTestServer(Path fixtureRoot, Path workDir, Path hostKeyFile, int fixedPort)
             throws IOException, NoSuchAlgorithmException {
+        this(fixtureRoot, workDir, hostKeyFile, fixedPort, false);
+    }
+
+    /**
+     * With {@code execEnabled} the server also runs exec-channel commands via
+     * {@code /bin/sh -c} and serves SFTP from the real filesystem root, so
+     * shell paths and SFTP paths line up — as on a real host.
+     */
+    SshTestServer(Path fixtureRoot, Path workDir, Path hostKeyFile, int fixedPort,
+                  boolean execEnabled) throws IOException, NoSuchAlgorithmException {
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(2048);
         KeyPair clientKeyPair = generator.generateKeyPair();
@@ -44,7 +55,15 @@ final class SshTestServer implements AutoCloseable {
         sshd.setPublickeyAuthenticator((username, key, session) ->
                 USER.equals(username) && KeyUtils.compareKeys(key, clientKeyPair.getPublic()));
         sshd.setSubsystemFactories(List.of(new SftpSubsystemFactory()));
-        sshd.setFileSystemFactory(new VirtualFileSystemFactory(fixtureRoot));
+        if (execEnabled) {
+            sshd.setFileSystemFactory(
+                    new VirtualFileSystemFactory(java.nio.file.Paths.get("/")));
+            sshd.setCommandFactory((channel, command) ->
+                    new ProcessShellFactory(command, "/bin/sh", "-c", command)
+                            .createShell(channel));
+        } else {
+            sshd.setFileSystemFactory(new VirtualFileSystemFactory(fixtureRoot));
+        }
         sshd.start();
     }
 
