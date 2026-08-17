@@ -19,8 +19,8 @@ import com.googlecode.lanterna.gui2.dialogs.WaitingDialog;
 import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import io.github.eolivelli.nb5visualizer.Nb5Visualizer;
-import io.github.eolivelli.nb5visualizer.tui.ssh.RemoteDownloader;
-import io.github.eolivelli.nb5visualizer.tui.ssh.SshConnection;
+import io.github.eolivelli.nb5visualizer.ssh.RemoteDownloader;
+import io.github.eolivelli.nb5visualizer.ssh.SshConnection;
 
 import java.io.IOException;
 import java.nio.file.FileSystem;

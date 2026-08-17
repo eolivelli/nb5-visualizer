@@ -27,6 +27,7 @@ jobs:
           name: jars
           path: |
             nb5-visualizer-core/target/nb5-visualizer-core-*.jar
+            nb5-visualizer-cli/target/nb5-visualizer-cli-*.jar
             nb5-visualizer-tui/target/nb5-visualizer-tui-*.jar
 
   docker-integration:

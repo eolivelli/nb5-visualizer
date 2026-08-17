@@ -1,4 +1,4 @@
-package io.github.eolivelli.nb5visualizer.tui.ssh;
+package io.github.eolivelli.nb5visualizer.ssh;
 
 import java.io.IOException;
 import java.nio.file.Files;

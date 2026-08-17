@@ -1,4 +1,4 @@
-package io.github.eolivelli.nb5visualizer.tui.ssh;
+package io.github.eolivelli.nb5visualizer.ssh;
 
 import org.apache.sshd.common.config.keys.KeyUtils;
 import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory;

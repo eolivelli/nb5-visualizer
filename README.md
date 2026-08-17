@@ -23,8 +23,8 @@ or archive it next to the run logs. It follows your light/dark color scheme.
 ## Requirements
 
 - **JDK 11 or newer** to run the visualizer (the core CLI is a plain executable jar
-  with zero runtime dependencies; the TUI jar is equally self-contained, with the
-  [Lanterna](https://github.com/mabe02/lanterna) terminal library and
+  with zero runtime dependencies; the TUI and CLI jars are equally self-contained,
+  with the [Lanterna](https://github.com/mabe02/lanterna) terminal library and/or
   [Apache Mina SSHD](https://mina.apache.org/sshd-project/) bundled in).
 - NoSQLBench **5.25+** (the current `nosqlbench/nosqlbench` Docker image or a recent
   `nb5` binary). This tool reads the labeled CSV metrics introduced with nb5's
@@ -39,13 +39,15 @@ Download the jars from the [GitHub releases](https://github.com/eolivelli/nb5-vi
 | Jar | What it does |
 |---|---|
 | `nb5-visualizer-tui-<version>.jar` | **Recommended.** Everything: the interactive terminal UI, the command line, and SSH support for remote runs. |
-| `nb5-visualizer-core-<version>.jar` | Minimal command line only, zero dependencies. |
+| `nb5-visualizer-cli-<version>.jar` | Headless command line with SSH support — no terminal UI. |
+| `nb5-visualizer-core-<version>.jar` | Minimal command line only, zero dependencies, local files only. |
 
 Or build from source:
 
 ```bash
 mvn package
 # -> nb5-visualizer-core/target/nb5-visualizer-core-<version>.jar   (CLI, zero deps)
+# -> nb5-visualizer-cli/target/nb5-visualizer-cli-<version>.jar     (CLI + SSH)
 # -> nb5-visualizer-tui/target/nb5-visualizer-tui-<version>.jar     (TUI + CLI + SSH)
 ```
 
@@ -56,7 +58,7 @@ In a checkout you can also use the launcher scripts in the repository root —
 they find the jar wherever the build put it (and build it first if needed):
 
 ```bash
-./nb5-visualizer.sh out -o report.html      # CLI (core jar)
+./nb5-visualizer.sh out -o report.html      # CLI (cli jar, takes the SSH flags too)
 ./nb5-visualizer-tui.sh                     # TUI (also takes all CLI/SSH flags)
 ```
 
@@ -172,16 +174,17 @@ Apache Mina SSHD (Apache-2.0), and net.i2p.crypto eddsa (CC0).
 
 ## Remote runs over SSH
 
-If the benchmark ran on a machine you reach via SSH, the TUI jar can use the
-files over there directly — no manual copying. Add `--ssh` (works for both the
-interactive TUI and the plain CLI; the connection is opened once, at launch):
+If the benchmark ran on a machine you reach via SSH, the TUI and CLI jars can
+use the files over there directly — no manual copying. Add `--ssh` (the
+connection is opened once, at launch):
 
 ```bash
-# interactive: the file browser walks the remote filesystem
+# interactive TUI: the file browser walks the remote filesystem
 java -jar nb5-visualizer-tui/target/nb5-visualizer-tui-*.jar --ssh me@bench-host
 
-# CLI: input paths refer to the remote machine (relative to the remote home)
-java -jar nb5-visualizer-tui/target/nb5-visualizer-tui-*.jar \
+# headless CLI: input paths refer to the remote machine (relative to the
+# remote home) — the TUI jar accepts the same arguments
+java -jar nb5-visualizer-cli/target/nb5-visualizer-cli-*.jar \
   --ssh me@bench-host:2222 -i ~/.ssh/id_ed25519 \
   bench/out-baseline bench/out-tuned --labels "baseline,tuned" -o compare.html
 ```
@@ -198,8 +201,8 @@ java -jar nb5-visualizer-tui/target/nb5-visualizer-tui-*.jar \
   a **changed** key is always rejected.
 - Selected inputs (metrics directories or `.zip` archives) are fetched to a
   local temp directory, deleted on exit; the HTML report is always written
-  locally. The SSH support (Apache Mina SSHD) is bundled in the TUI jar — the
-  core CLI jar stays dependency-free and local-only.
+  locally. The SSH support (Apache Mina SSHD) is bundled in the TUI and CLI
+  jars — the core jar stays dependency-free and local-only.
 
 ## Comparing two runs
 
@@ -253,11 +256,13 @@ The Docker integration tests pull `cassandra:5`, `nosqlbench/nosqlbench:latest`,
 `eclipse-temurin:11-jre` and `alpine` on first use; everything else (including
 the SSH tests) runs without Docker.
 
-The project is a two-module Maven build: `nb5-visualizer-core` (parser, analyzer,
-HTML generator, CLI — no runtime dependencies) and `nb5-visualizer-tui` (the
-Lanterna-based terminal UI plus the SSH support, shaded into a self-contained
-jar). CI builds on JDK 11/17/21; pushing a `v*` tag builds and attaches both
-jars to a GitHub release (`v0.x` and `-rc` tags are marked pre-release).
+The project is a four-module Maven build: `nb5-visualizer-core` (parser,
+analyzer, HTML generator, CLI — no runtime dependencies), `nb5-visualizer-ssh`
+(the shared SSH/SFTP support on Apache Mina SSHD), `nb5-visualizer-cli`
+(core + SSH shaded into a headless self-contained jar) and `nb5-visualizer-tui`
+(the Lanterna-based terminal UI on top of the same pieces). CI builds on
+JDK 11/17/21; pushing a `v*` tag builds and attaches the jars to a GitHub
+release (`v0.x` and `-rc` tags are marked pre-release).
 
 The test fixtures in `nb5-visualizer-core/src/test/resources/fixtures/` are unmodified output of real
 nb5 runs against Cassandra 5 (`run-witherrors` and `run-witherrors-b` were

@@ -10,11 +10,11 @@
     <version>0.2.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>nb5-visualizer-tui</artifactId>
+  <artifactId>nb5-visualizer-cli</artifactId>
   <packaging>jar</packaging>
 
-  <name>NoSQLBench 5 Visualizer :: TUI</name>
-  <description>Terminal UI for browsing to metrics directories or zips and rendering the report. Ships as a self-contained jar.</description>
+  <name>NoSQLBench 5 Visualizer :: CLI</name>
+  <description>Headless command line with SSH support for remote runs, shaded into a self-contained jar. No terminal UI.</description>
 
   <dependencies>
     <dependency>
@@ -22,12 +22,6 @@
       <artifactId>nb5-visualizer-core</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <dependency>
-      <groupId>com.googlecode.lanterna</groupId>
-      <artifactId>lanterna</artifactId>
-      <version>${lanterna.version}</version>
-    </dependency>
-    <!-- SSH/SFTP support for remote metrics (the ssh flag). -->
     <dependency>
       <groupId>io.github.eolivelli</groupId>
       <artifactId>nb5-visualizer-ssh</artifactId>
@@ -37,7 +31,7 @@
 
   <build>
     <plugins>
-      <!-- Self-contained runnable jar: core + Lanterna shaded in. -->
+      <!-- Self-contained runnable jar: core + SSH support shaded in. -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
@@ -50,7 +44,7 @@
             <configuration>
               <transformers>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                  <mainClass>io.github.eolivelli.nb5visualizer.tui.TuiMain</mainClass>
+                  <mainClass>io.github.eolivelli.nb5visualizer.cli.CliMain</mainClass>
                 </transformer>
                 <!-- sshd-common and sshd-sftp both ship a FileSystemProvider
                      services file; they must be merged, not overwritten. -->

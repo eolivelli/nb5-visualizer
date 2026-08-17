@@ -22,6 +22,8 @@
 
   <modules>
     <module>nb5-visualizer-core</module>
+    <module>nb5-visualizer-ssh</module>
+    <module>nb5-visualizer-cli</module>
     <module>nb5-visualizer-tui</module>
   </modules>
 

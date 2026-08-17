@@ -1,4 +1,4 @@
-package io.github.eolivelli.nb5visualizer.tui.ssh;
+package io.github.eolivelli.nb5visualizer.ssh;
 
 /** Parsed {@code --ssh} target: {@code user@host[:port]}. */
 public final class SshTarget {

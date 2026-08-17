@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.eolivelli</groupId>
+    <artifactId>nb5-visualizer-parent</artifactId>
+    <version>0.2.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>nb5-visualizer-ssh</artifactId>
+  <packaging>jar</packaging>
+
+  <name>NoSQLBench 5 Visualizer :: SSH</name>
+  <description>Shared SSH/SFTP support: one connection at launch, remote browsing as NIO paths, download of remote inputs. Used by the CLI and TUI jars.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.sshd</groupId>
+      <artifactId>sshd-core</artifactId>
+      <version>${sshd.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sshd</groupId>
+      <artifactId>sshd-sftp</artifactId>
+      <version>${sshd.version}</version>
+    </dependency>
+    <!-- ed25519 keys on JDK < 15; Mina detects this provider by class name,
+         so it must never be relocated. -->
+    <dependency>
+      <groupId>net.i2p.crypto</groupId>
+      <artifactId>eddsa</artifactId>
+      <version>0.3.0</version>
+    </dependency>
+    <!-- Mina logs through slf4j; both consumers are terminal programs that
+         must stay quiet. -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-nop</artifactId>
+      <version>${slf4j.version}</version>
+    </dependency>
+  </dependencies>
+</project>

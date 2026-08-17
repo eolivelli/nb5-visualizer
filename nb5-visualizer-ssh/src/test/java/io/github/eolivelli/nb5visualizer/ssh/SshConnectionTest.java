@@ -1,6 +1,6 @@
-package io.github.eolivelli.nb5visualizer.tui.ssh;
+package io.github.eolivelli.nb5visualizer.ssh;
 
-import io.github.eolivelli.nb5visualizer.tui.PathPickerDialog;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -41,18 +41,22 @@ class SshConnectionTest {
              SshConnection conn = SshConnection.open(server.target(), server.clientKeyFile,
                      knownHosts, ACCEPT, NO_PASSPHRASE)) {
 
-            // remote browsing through the existing picker logic, on SftpPaths
-            List<String> names = PathPickerDialog.listEntries(conn.home()).stream()
-                    .map(p -> p.getFileName().toString())
-                    .collect(Collectors.toList());
-            assertEquals(List.of("run-a", "run-b", "archive.zip"), names);
+            // remote browsing uses the plain java.nio Files API on SftpPaths —
+            // the same calls the TUI file browser makes
+            List<String> names;
+            try (var listing = Files.list(conn.home())) {
+                names = listing.map(p -> p.getFileName().toString())
+                        .sorted()
+                        .collect(Collectors.toList());
+            }
+            assertEquals(List.of("archive.zip", "ignored.txt", "run-a", "run-b"), names);
+            assertTrue(Files.isDirectory(conn.home().resolve("run-a")));
+            assertFalse(Files.isDirectory(conn.home().resolve("archive.zip")));
 
             // a subdirectory as the starting point (the --remote-dir case)
-            Path subdir = conn.home().resolve("run-b").normalize();
+            Path subdir = SshLauncher.resolveBaseDir(conn, "run-b");
             assertTrue(Files.isDirectory(subdir));
-            assertEquals(List.of("csv"), PathPickerDialog.listEntries(subdir).stream()
-                    .map(p -> p.getFileName().toString())
-                    .collect(Collectors.toList()));
+            assertThrows(IOException.class, () -> SshLauncher.resolveBaseDir(conn, "nope"));
 
             // recursive dir download preserves tree and bytes
             Path localRoot = work.resolve("downloads");
