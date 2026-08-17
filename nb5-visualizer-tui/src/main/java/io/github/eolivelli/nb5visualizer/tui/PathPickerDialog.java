@@ -2,7 +2,6 @@ package io.github.eolivelli.nb5visualizer.tui;
 
 import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.gui2.ActionListBox;
-import com.googlecode.lanterna.gui2.Button;
 import com.googlecode.lanterna.gui2.Direction;
 import com.googlecode.lanterna.gui2.EmptySpace;
 import com.googlecode.lanterna.gui2.Label;
@@ -38,6 +37,8 @@ final class PathPickerDialog extends DialogWindow {
     private PathPickerDialog(String title, Path startDir) {
         super(title);
         this.currentDir = startDir.toAbsolutePath().normalize();
+        setCloseWindowWithEscape(true);
+        location.setForegroundColor(TuiTheme.DIM);
 
         Panel panel = new Panel(new LinearLayout(Direction.VERTICAL));
         panel.addComponent(location);
@@ -45,11 +46,11 @@ final class PathPickerDialog extends DialogWindow {
         panel.addComponent(new EmptySpace(new TerminalSize(0, 1)));
 
         Panel buttons = new Panel(new LinearLayout(Direction.HORIZONTAL));
-        buttons.addComponent(new Button("Choose this directory", () -> {
+        buttons.addComponent(VisualizerTui.flatButton(" Choose this directory ", () -> {
             result = currentDir;
             close();
         }));
-        buttons.addComponent(new Button("Cancel", this::close));
+        buttons.addComponent(VisualizerTui.flatButton(" Cancel ", this::close));
         panel.addComponent(buttons, LinearLayout.createLayoutData(LinearLayout.Alignment.End));
 
         setComponent(panel);

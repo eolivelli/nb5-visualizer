@@ -1,8 +1,11 @@
 package io.github.eolivelli.nb5visualizer.tui;
 
+import com.googlecode.lanterna.SGR;
 import com.googlecode.lanterna.TerminalSize;
+import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.gui2.BasicWindow;
 import com.googlecode.lanterna.gui2.Button;
+import com.googlecode.lanterna.gui2.DefaultWindowManager;
 import com.googlecode.lanterna.gui2.EmptySpace;
 import com.googlecode.lanterna.gui2.GridLayout;
 import com.googlecode.lanterna.gui2.Label;
@@ -41,14 +44,17 @@ final class VisualizerTui {
         output.setText("nb5-report.html");
         try (Screen screen = new DefaultTerminalFactory().createScreen()) {
             screen.startScreen();
-            WindowBasedTextGUI gui = new MultiWindowTextGUI(screen);
+            WindowBasedTextGUI gui = new MultiWindowTextGUI(screen,
+                    new DefaultWindowManager(), new EmptySpace(TuiTheme.BACKGROUND));
+            gui.setTheme(TuiTheme.theme());
             gui.addWindowAndWait(buildWindow(gui));
         }
     }
 
     private Window buildWindow(WindowBasedTextGUI gui) {
-        BasicWindow window = new BasicWindow("NoSQLBench 5 Visualizer");
-        window.setHints(List.of(Window.Hint.CENTERED));
+        BasicWindow window = new BasicWindow();
+        window.setHints(List.of(Window.Hint.CENTERED, Window.Hint.NO_DECORATIONS));
+        window.setCloseWindowWithEscape(true);
 
         Panel form = new Panel(new GridLayout(3));
 
@@ -68,29 +74,45 @@ final class VisualizerTui {
         form.addComponent(title);
         form.addComponent(new EmptySpace());
 
-        form.addComponent(new EmptySpace(new TerminalSize(0, 1)),
-                GridLayout.createHorizontallyFilledLayoutData(3));
-
         Panel actions = new Panel(new GridLayout(2));
-        actions.addComponent(new Button("Generate report", () -> generate(gui)));
-        actions.addComponent(new Button("Quit", window::close));
-        form.addComponent(actions, GridLayout.createHorizontallyFilledLayoutData(3));
+        actions.addComponent(flatButton(" Generate report ", () -> generate(gui)));
+        actions.addComponent(flatButton(" Quit ", window::close));
 
         Panel root = new Panel();
-        root.addComponent(new Label("Pick one run for a report, two runs for a comparison."));
+        Label heading = new Label("✻ NoSQLBench 5 Visualizer");
+        heading.setForegroundColor(TuiTheme.ACCENT);
+        heading.addStyle(SGR.BOLD);
+        root.addComponent(heading);
+        root.addComponent(dim("Pick one run for a report, two runs for a comparison."));
         root.addComponent(new EmptySpace(new TerminalSize(0, 1)));
         root.addComponent(form);
+        root.addComponent(new EmptySpace(new TerminalSize(0, 1)));
+        root.addComponent(actions);
+        root.addComponent(new EmptySpace(new TerminalSize(0, 1)));
+        root.addComponent(dim("tab/arrows move · enter activates · esc quits"));
         window.setComponent(root);
         return window;
     }
 
     private Button browseButton(WindowBasedTextGUI gui, TextBox target, String dialogTitle) {
-        return new Button("Browse…", () -> {
+        return flatButton(" Browse… ", () -> {
             Path picked = PathPickerDialog.show(gui, dialogTitle, startDirFor(target));
             if (picked != null) {
                 target.setText(picked.toString());
             }
         });
+    }
+
+    static Button flatButton(String label, Runnable action) {
+        Button button = new Button(label, action);
+        button.setRenderer(new Button.FlatButtonRenderer());
+        return button;
+    }
+
+    static Label dim(String text) {
+        Label label = new Label(text);
+        label.setForegroundColor(TuiTheme.DIM);
+        return label;
     }
 
     /** Starts browsing from the box's current path (or its parent), else the cwd. */
