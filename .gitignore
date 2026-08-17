@@ -7,3 +7,4 @@ target/
 .settings/
 nb5-report.html
 dependency-reduced-pom.xml
+.claude/
