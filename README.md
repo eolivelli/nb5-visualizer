@@ -28,13 +28,26 @@ or archive it next to the run logs. It follows your light/dark color scheme.
   snapshot-based metrics system; the old dotted metric names of nb5 5.17/5.21 are
   not supported.
 
-## Build
+## Get it
+
+Download the jars from the [GitHub releases](https://github.com/eolivelli/nb5-visualizer/releases)
+— both are self-contained, `java -jar` is all you need:
+
+| Jar | What it does |
+|---|---|
+| `nb5-visualizer-tui-<version>.jar` | **Recommended.** Everything: the interactive terminal UI, the command line, and SSH support for remote runs. |
+| `nb5-visualizer-core-<version>.jar` | Minimal command line only, zero dependencies. |
+
+Or build from source:
 
 ```bash
 mvn package
 # -> nb5-visualizer-core/target/nb5-visualizer-core-<version>.jar   (CLI, zero deps)
-# -> nb5-visualizer-tui/target/nb5-visualizer-tui-<version>.jar     (TUI + CLI, self-contained)
+# -> nb5-visualizer-tui/target/nb5-visualizer-tui-<version>.jar     (TUI + CLI + SSH)
 ```
+
+The examples below use the paths of a source build; with a downloaded jar just
+substitute its filename.
 
 ## 1. Run NoSQLBench so it produces input for the visualizer
 
@@ -99,12 +112,15 @@ docker run --rm --network nb5net -v "$PWD/out:/out" -v "$PWD/examples:/workloads
   --report-csv-to '/out/csv:.*:5s'
 ```
 
-## 2. Generate the report
+## 2. Generate the report (CLI)
 
 ```bash
 java -jar nb5-visualizer-core/target/nb5-visualizer-core-*.jar out \
   -o report.html --title "cql_keyvalue baseline"
 ```
+
+(The TUI jar accepts exactly the same arguments — any argument makes it behave
+as the plain CLI.)
 
 The input is the CSV directory itself (`out/csv`), its parent (`out`), or a
 **`.zip` archive** of either — handy when someone mails you the metrics of a run.
@@ -119,7 +135,7 @@ Usage: java -jar nb5-visualizer.jar <metrics-dir> [options]
                   (default: directory/archive names)
 ```
 
-## Interactive terminal UI
+## Interactive terminal UI (TUI)
 
 If you'd rather browse to the metrics than type paths, run the TUI jar with no
 arguments:

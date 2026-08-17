@@ -20,6 +20,14 @@ jobs:
           cache: maven
       - name: Build and unit test
         run: mvn -B verify
+      - name: Upload jars
+        if: matrix.java == '17'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jars
+          path: |
+            nb5-visualizer-core/target/nb5-visualizer-core-*.jar
+            nb5-visualizer-tui/target/nb5-visualizer-tui-*.jar
 
   docker-integration:
     runs-on: ubuntu-latest

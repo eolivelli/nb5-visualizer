@@ -1,0 +1,32 @@
+name: Release
+
+# Pushing a tag like v0.1.0 builds the jars and creates (or updates) the
+# GitHub release for that tag with the jars attached. Tags with a -suffix
+# (v0.2.0-rc1) and all v0.x tags are marked as pre-releases.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Build and test
+        run: mvn -B verify
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: ${{ contains(github.ref_name, '-') || startsWith(github.ref_name, 'v0.') }}
+          generate_release_notes: true
+          files: |
+            nb5-visualizer-core/target/nb5-visualizer-core-*.jar
+            nb5-visualizer-tui/target/nb5-visualizer-tui-*.jar
