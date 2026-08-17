@@ -1,5 +1,8 @@
 # NoSQLBench 5 Visualizer
 
+[![CI](https://github.com/eolivelli/nb5-visualizer/actions/workflows/ci.yml/badge.svg)](https://github.com/eolivelli/nb5-visualizer/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/eolivelli/nb5-visualizer?include_prereleases)](https://github.com/eolivelli/nb5-visualizer/releases)
+
 Turn the metrics of a [NoSQLBench 5](https://github.com/nosqlbench/nosqlbench) (nb5)
 CQL benchmark run into a **single, self-contained HTML report** with summaries and
 time series:
@@ -20,9 +23,9 @@ or archive it next to the run logs. It follows your light/dark color scheme.
 ## Requirements
 
 - **JDK 11 or newer** to run the visualizer (the core CLI is a plain executable jar
-  with zero runtime dependencies; the optional TUI jar is equally self-contained,
-  with the [Lanterna](https://github.com/mabe02/lanterna) terminal library bundled
-  in).
+  with zero runtime dependencies; the TUI jar is equally self-contained, with the
+  [Lanterna](https://github.com/mabe02/lanterna) terminal library and
+  [Apache Mina SSHD](https://mina.apache.org/sshd-project/) bundled in).
 - NoSQLBench **5.25+** (the current `nosqlbench/nosqlbench` Docker image or a recent
   `nb5` binary). This tool reads the labeled CSV metrics introduced with nb5's
   snapshot-based metrics system; the old dotted metric names of nb5 5.17/5.21 are
@@ -159,10 +162,13 @@ selects the directory being shown. Set the output file and an optional title, th
 *Generate report*; the TUI offers to open the finished report in your browser.
 
 The same jar doubles as the CLI: any command-line argument makes it behave exactly
-like the core jar (`java -jar nb5-visualizer-tui-*.jar out -o report.html`). It
-works in any ANSI terminal; launched without one (e.g. double-clicked from a file
-manager) it falls back to a Swing terminal window. The bundled Lanterna library is
-licensed under the LGPL-3.0; its source is available at the link above.
+like the core jar (`java -jar nb5-visualizer-tui-*.jar out -o report.html`) — with
+one addition, the `--ssh` flags described in the next section. It works in any
+ANSI terminal; launched without one (e.g. double-clicked from a file manager) it
+falls back to a Swing terminal window.
+
+Bundled third-party libraries: Lanterna (LGPL-3.0, source at the link above),
+Apache Mina SSHD (Apache-2.0), and net.i2p.crypto eddsa (CC0).
 
 ## Remote runs over SSH
 
@@ -237,17 +243,21 @@ the two runs came from different workload files.
 ## Development
 
 ```bash
-mvn test                 # unit tests (run against recorded real nb5 output)
+mvn test                 # unit tests: recorded real nb5 output, plus the SSH
+                         #   feature tested against an in-JVM Mina SSH server
 mvn verify -Pdocker-it   # + integration tests: full Cassandra 5 + nb5 run in
                          #   Docker, and a JDK-11-only runtime check of the jar
 ```
 
-The integration tests need Docker and pull `cassandra:5`,
-`nosqlbench/nosqlbench:latest`, `eclipse-temurin:11-jre` and `alpine` on first use.
+The Docker integration tests pull `cassandra:5`, `nosqlbench/nosqlbench:latest`,
+`eclipse-temurin:11-jre` and `alpine` on first use; everything else (including
+the SSH tests) runs without Docker.
 
 The project is a two-module Maven build: `nb5-visualizer-core` (parser, analyzer,
 HTML generator, CLI — no runtime dependencies) and `nb5-visualizer-tui` (the
-Lanterna-based terminal UI, shaded into a self-contained jar).
+Lanterna-based terminal UI plus the SSH support, shaded into a self-contained
+jar). CI builds on JDK 11/17/21; pushing a `v*` tag builds and attaches both
+jars to a GitHub release (`v0.x` and `-rc` tags are marked pre-release).
 
 The test fixtures in `nb5-visualizer-core/src/test/resources/fixtures/` are unmodified output of real
 nb5 runs against Cassandra 5 (`run-witherrors` and `run-witherrors-b` were
