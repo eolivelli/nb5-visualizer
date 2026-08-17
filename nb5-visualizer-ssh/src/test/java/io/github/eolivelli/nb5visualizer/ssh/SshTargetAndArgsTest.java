@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SshTargetAndArgsTest {
 
@@ -39,10 +40,11 @@ class SshTargetAndArgsTest {
     void sshFlagsAreExtractedAndTheRestKeptInOrder() {
         SshArgs ssh = SshArgs.extract(new String[]{
                 "run-a", "--ssh", "me@bench:2222", "-o", "out.html", "-i", "/keys/k",
-                "--remote-dir", "bench/results", "run-b"});
+                "--remote-dir", "bench/results", "-v", "run-b"});
         assertEquals("me@bench:2222", ssh.spec);
         assertEquals(Paths.get("/keys/k"), ssh.identity);
         assertEquals("bench/results", ssh.remoteDir);
+        assertTrue(ssh.verbose);
         assertArrayEquals(new String[]{"run-a", "-o", "out.html", "run-b"}, ssh.rest);
     }
 
@@ -59,6 +61,8 @@ class SshTargetAndArgsTest {
                 () -> SshArgs.extract(new String[]{"-i", "/keys/k", "run-a"}));
         assertThrows(IllegalArgumentException.class,
                 () -> SshArgs.extract(new String[]{"--remote-dir", "d", "run-a"}));
+        assertThrows(IllegalArgumentException.class,
+                () -> SshArgs.extract(new String[]{"-v", "run-a"}));
         assertThrows(IllegalArgumentException.class,
                 () -> SshArgs.extract(new String[]{"--ssh"}));
     }

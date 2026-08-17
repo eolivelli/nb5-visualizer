@@ -60,6 +60,8 @@ public final class TuiMain {
             if (ssh.rest.length > 0) {
                 Main.main(SshLauncher.downloadInputs(ssh.rest, conn, baseDir, tempRoot));
             } else {
+                // stray log lines would corrupt the full-screen UI
+                io.github.eolivelli.nb5visualizer.ssh.Verbose.disable();
                 new VisualizerTui(conn, baseDir, tempRoot).run();
             }
         } catch (IOException | IllegalArgumentException e) {

@@ -196,6 +196,9 @@ java -jar nb5-visualizer-cli/target/nb5-visualizer-cli-*.jar \
   it (default: the remote home; a relative value resolves against the home).
   With it, the CLI example above becomes
   `--ssh me@bench-host --remote-dir bench out-baseline out-tuned …`.
+- `-v/--verbose` logs the SSH progress to stderr — connecting, authentication,
+  directory walking, and every file download with size and timing — useful when
+  a transfer looks stuck. (In the TUI it covers the connect phase only.)
 - Host keys are checked against `~/.ssh/known_hosts` with accept-new semantics:
   unknown hosts show their fingerprint and are remembered after you confirm;
   a **changed** key is always rejected.

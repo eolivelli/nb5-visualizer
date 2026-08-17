@@ -17,6 +17,9 @@ public final class SshLauncher {
     /** Connects using console prompts and the user's {@code ~/.ssh/known_hosts}. */
     public static SshConnection connect(SshArgs ssh)
             throws IOException, GeneralSecurityException {
+        if (ssh.verbose) {
+            Verbose.enable();
+        }
         Prompts.ConsolePrompts prompts = new Prompts.ConsolePrompts();
         Path knownHosts = Paths.get(System.getProperty("user.home"), ".ssh", "known_hosts");
         return SshConnection.open(SshTarget.parse(ssh.spec), ssh.identity, knownHosts,
@@ -29,6 +32,7 @@ public final class SshLauncher {
             return conn.home();
         }
         Path base = conn.home().resolve(remoteDir).normalize();
+        Verbose.log("checking --remote-dir " + base + "…");
         if (!Files.isDirectory(base)) {
             throw new IOException("--remote-dir is not a directory on " + conn.description()
                     + ": " + base);
@@ -59,6 +63,7 @@ public final class SshLauncher {
                 i++;
             } else if (!rewritten[i].startsWith("-")) {
                 Path remote = baseDir.resolve(rewritten[i]);
+                Verbose.log("checking remote input " + remote + "…");
                 if (!Files.exists(remote)) {
                     throw new IOException("Remote input does not exist on " + conn.description()
                             + ": " + remote);
@@ -93,6 +98,9 @@ public final class SshLauncher {
         System.out.println("                           file browser starts there and relative input");
         System.out.println("                           paths resolve against it (default: remote home;");
         System.out.println("                           relative values resolve against the home).");
+        System.out.println("  -v, --verbose            log SSH progress to stderr (connecting, auth,");
+        System.out.println("                           per-file downloads with sizes and timings). In");
+        System.out.println("                           the TUI it covers the connect phase only.");
         System.out.println("  Host keys are checked against ~/.ssh/known_hosts; unknown hosts are");
         System.out.println("  confirmed on the console and remembered, changed keys are rejected.");
     }

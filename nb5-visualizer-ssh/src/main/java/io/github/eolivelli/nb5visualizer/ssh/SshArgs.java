@@ -14,12 +14,14 @@ public final class SshArgs {
     public final String spec;       // user@host[:port], null when --ssh absent
     public final Path identity;     // -i/--identity, or null
     public final String remoteDir;  // --remote-dir, or null
+    public final boolean verbose;   // -v/--verbose
     public final String[] rest;
 
-    private SshArgs(String spec, Path identity, String remoteDir, String[] rest) {
+    private SshArgs(String spec, Path identity, String remoteDir, boolean verbose, String[] rest) {
         this.spec = spec;
         this.identity = identity;
         this.remoteDir = remoteDir;
+        this.verbose = verbose;
         this.rest = rest;
     }
 
@@ -27,6 +29,7 @@ public final class SshArgs {
         String spec = null;
         Path identity = null;
         String remoteDir = null;
+        boolean verbose = false;
         List<String> rest = new ArrayList<>();
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -40,15 +43,19 @@ public final class SshArgs {
                 case "--remote-dir":
                     remoteDir = requireValue(args, ++i, "--remote-dir");
                     break;
+                case "-v":
+                case "--verbose":
+                    verbose = true;
+                    break;
                 default:
                     rest.add(args[i]);
             }
         }
-        if (spec == null && (identity != null || remoteDir != null)) {
+        if (spec == null && (identity != null || remoteDir != null || verbose)) {
             throw new IllegalArgumentException(
-                    "-i/--identity and --remote-dir require --ssh user@host[:port]");
+                    "-i/--identity, --remote-dir and -v/--verbose require --ssh user@host[:port]");
         }
-        return new SshArgs(spec, identity, remoteDir, rest.toArray(new String[0]));
+        return new SshArgs(spec, identity, remoteDir, verbose, rest.toArray(new String[0]));
     }
 
     private static String requireValue(String[] args, int i, String option) {

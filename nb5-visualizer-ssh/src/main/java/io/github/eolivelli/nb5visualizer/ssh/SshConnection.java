@@ -54,6 +54,7 @@ public final class SshConnection implements AutoCloseable {
                                      Prompts.PassphrasePrompt passphrasePrompt)
             throws IOException, GeneralSecurityException {
         Path keyPath = resolveIdentity(identityFile);
+        Verbose.log("using identity " + keyPath);
 
         SshClient client = SshClient.setUpDefaultClient();
         AtomicBoolean keyChanged = new AtomicBoolean();
@@ -72,10 +73,13 @@ public final class SshConnection implements AutoCloseable {
             if (keys.isEmpty()) {
                 throw new IOException("No usable key found in " + keyPath);
             }
+            Verbose.log("loaded " + keys.size() + " key(s) from " + keyPath.getFileName());
 
+            Verbose.log("connecting to " + target.host + ":" + target.port + " (timeout 15s)…");
             session = client.connect(target.user, target.host, target.port)
                     .verify(Duration.ofSeconds(15))
                     .getSession();
+            Verbose.log("connected, authenticating as " + target.user + " (timeout 30s)…");
             keys.forEach(session::addPublicKeyIdentity);
             try {
                 session.auth().verify(Duration.ofSeconds(30));
@@ -88,7 +92,9 @@ public final class SshConnection implements AutoCloseable {
                 throw new IOException("Authentication as " + target + " failed with key "
                         + keyPath + ": " + e.getMessage(), e);
             }
+            Verbose.log("authenticated, opening SFTP filesystem…");
             SftpFileSystem fs = new SftpFileSystemProvider(client).newFileSystem(session);
+            Verbose.log("SFTP ready, remote home is " + fs.getDefaultDir());
             return new SshConnection(client, fs, target.toString());
         } catch (IOException | GeneralSecurityException | RuntimeException e) {
             if (session != null) {
@@ -114,10 +120,12 @@ public final class SshConnection implements AutoCloseable {
         // Unknown host -> ask the prompt; on yes Mina appends the entry to the
         // file itself. No ModifiedServerKeyAcceptor is set, so a changed key is
         // always rejected — the acceptor below only records it for the error text.
-        ServerKeyVerifier unknownHostDelegate = (session, remoteAddress, serverKey) ->
-                hostPrompt.acceptUnknownHost(target.host + ":" + target.port,
-                        KeyUtils.getKeyType(serverKey),
-                        KeyUtils.getFingerPrint(BuiltinDigests.sha256, serverKey));
+        ServerKeyVerifier unknownHostDelegate = (session, remoteAddress, serverKey) -> {
+            Verbose.log("host key not in " + knownHostsFile + ", asking for confirmation…");
+            return hostPrompt.acceptUnknownHost(target.host + ":" + target.port,
+                    KeyUtils.getKeyType(serverKey),
+                    KeyUtils.getFingerPrint(BuiltinDigests.sha256, serverKey));
+        };
         KnownHostsServerKeyVerifier verifier =
                 new KnownHostsServerKeyVerifier(unknownHostDelegate, knownHostsFile);
         verifier.setModifiedServerKeyAcceptor((session, remoteAddress, entry, expected, actual) -> {

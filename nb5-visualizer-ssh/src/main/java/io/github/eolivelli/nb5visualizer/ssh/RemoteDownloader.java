@@ -28,10 +28,18 @@ public final class RemoteDownloader {
         }
         Path target = localRoot.resolve(String.valueOf(index)).resolve(name.toString());
         Files.createDirectories(target.getParent());
+        long startedAt = System.nanoTime();
         if (!Files.isDirectory(remote)) {
+            if (Verbose.isEnabled()) {
+                Verbose.log("fetching file " + remote + " (" + Files.size(remote) + " bytes)");
+            }
             Files.copy(remote, target, StandardCopyOption.REPLACE_EXISTING);
+            Verbose.log("fetched " + remote.getFileName() + " in " + elapsedMs(startedAt) + " ms");
             return target;
         }
+        Verbose.log("walking remote directory " + remote + "…");
+        int files = 0;
+        long bytes = 0;
         try (Stream<Path> walk = Files.walk(remote)) {
             for (Path p : (Iterable<Path>) walk::iterator) {
                 // Resolve element by element through Strings: mixing paths of
@@ -44,13 +52,28 @@ public final class RemoteDownloader {
                     }
                 }
                 if (Files.isDirectory(p)) {
+                    if (!local.equals(target)) {
+                        Verbose.log("entering " + remote.relativize(p) + "/");
+                    }
                     Files.createDirectories(local);
                 } else {
+                    if (Verbose.isEnabled()) {
+                        Verbose.log("fetching " + remote.relativize(p)
+                                + " (" + Files.size(p) + " bytes)");
+                    }
                     Files.copy(p, local, StandardCopyOption.REPLACE_EXISTING);
+                    files++;
+                    bytes += Files.size(local);
                 }
             }
         }
+        Verbose.log("downloaded " + files + " file(s), " + bytes + " bytes in "
+                + elapsedMs(startedAt) + " ms -> " + target);
         return target;
+    }
+
+    private static long elapsedMs(long startedAtNanos) {
+        return (System.nanoTime() - startedAtNanos) / 1_000_000;
     }
 
     /** Best-effort recursive delete of the temp root, for a shutdown hook. */
