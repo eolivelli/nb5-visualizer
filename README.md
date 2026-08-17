@@ -49,6 +49,14 @@ mvn package
 The examples below use the paths of a source build; with a downloaded jar just
 substitute its filename.
 
+In a checkout you can also use the launcher scripts in the repository root —
+they find the jar wherever the build put it (and build it first if needed):
+
+```bash
+./nb5-visualizer.sh out -o report.html      # CLI (core jar)
+./nb5-visualizer-tui.sh                     # TUI (also takes all CLI/SSH flags)
+```
+
 ## 1. Run NoSQLBench so it produces input for the visualizer
 
 The visualizer reads the directory written by nb5's `--report-csv-to` option: one CSV
