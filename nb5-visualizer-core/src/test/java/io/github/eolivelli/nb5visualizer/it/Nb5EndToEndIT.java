@@ -66,7 +66,8 @@ class Nb5EndToEndIT {
 
     @Test
     void runWorkloadAndVisualize() throws Exception {
-        Path workload = Paths.get("examples/nb5viz_demo.yaml").toAbsolutePath();
+        // examples/ lives at the repo root, one level above this module's working dir
+        Path workload = Paths.get("../examples/nb5viz_demo.yaml").toAbsolutePath().normalize();
         assertTrue(Files.exists(workload), "demo workload missing: " + workload);
 
         // nb5's docker image runs as root with the jar at /; override the

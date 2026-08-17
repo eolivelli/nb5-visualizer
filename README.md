@@ -19,8 +19,10 @@ or archive it next to the run logs. It follows your light/dark color scheme.
 
 ## Requirements
 
-- **JDK 11 or newer** to run the visualizer (it is a plain executable jar with zero
-  runtime dependencies).
+- **JDK 11 or newer** to run the visualizer (the core CLI is a plain executable jar
+  with zero runtime dependencies; the optional TUI jar is equally self-contained,
+  with the [Lanterna](https://github.com/mabe02/lanterna) terminal library bundled
+  in).
 - NoSQLBench **5.25+** (the current `nosqlbench/nosqlbench` Docker image or a recent
   `nb5` binary). This tool reads the labeled CSV metrics introduced with nb5's
   snapshot-based metrics system; the old dotted metric names of nb5 5.17/5.21 are
@@ -30,7 +32,8 @@ or archive it next to the run logs. It follows your light/dark color scheme.
 
 ```bash
 mvn package
-# -> target/nb5-visualizer-<version>.jar
+# -> nb5-visualizer-core/target/nb5-visualizer-core-<version>.jar   (CLI, zero deps)
+# -> nb5-visualizer-tui/target/nb5-visualizer-tui-<version>.jar     (TUI + CLI, self-contained)
 ```
 
 ## 1. Run NoSQLBench so it produces input for the visualizer
@@ -99,7 +102,8 @@ docker run --rm --network nb5net -v "$PWD/out:/out" -v "$PWD/examples:/workloads
 ## 2. Generate the report
 
 ```bash
-java -jar target/nb5-visualizer-*.jar out -o report.html --title "cql_keyvalue baseline"
+java -jar nb5-visualizer-core/target/nb5-visualizer-core-*.jar out \
+  -o report.html --title "cql_keyvalue baseline"
 ```
 
 The input is the CSV directory itself (`out/csv`), its parent (`out`), or a
@@ -115,6 +119,27 @@ Usage: java -jar nb5-visualizer.jar <metrics-dir> [options]
                   (default: directory/archive names)
 ```
 
+## Interactive terminal UI
+
+If you'd rather browse to the metrics than type paths, run the TUI jar with no
+arguments:
+
+```bash
+java -jar nb5-visualizer-tui/target/nb5-visualizer-tui-*.jar
+```
+
+A full-screen form opens in the terminal: pick **Run A** (and optionally **Run B**
+for a comparison) with the built-in file browser — arrow keys navigate, Enter
+descends into a directory or picks a `.zip` archive, and *Choose this directory*
+selects the directory being shown. Set the output file and an optional title, then
+*Generate report*; the TUI offers to open the finished report in your browser.
+
+The same jar doubles as the CLI: any command-line argument makes it behave exactly
+like the core jar (`java -jar nb5-visualizer-tui-*.jar out -o report.html`). It
+works in any ANSI terminal; launched without one (e.g. double-clicked from a file
+manager) it falls back to a Swing terminal window. The bundled Lanterna library is
+licensed under the LGPL-3.0; its source is available at the link above.
+
 ## Comparing two runs
 
 Pass two inputs (directories or zips, in any mix) to get a comparison report of
@@ -122,7 +147,7 @@ two runs of the same workload — for example a baseline and a run with differen
 settings:
 
 ```bash
-java -jar target/nb5-visualizer-*.jar baseline-out tuned-out \
+java -jar nb5-visualizer-core/target/nb5-visualizer-core-*.jar baseline-out tuned-out \
   --labels "baseline,tuned" -o compare.html
 ```
 
@@ -165,7 +190,11 @@ mvn verify -Pdocker-it   # + integration tests: full Cassandra 5 + nb5 run in
 The integration tests need Docker and pull `cassandra:5`,
 `nosqlbench/nosqlbench:latest`, `eclipse-temurin:11-jre` and `alpine` on first use.
 
-The test fixtures in `src/test/resources/fixtures/` are unmodified output of real
+The project is a two-module Maven build: `nb5-visualizer-core` (parser, analyzer,
+HTML generator, CLI — no runtime dependencies) and `nb5-visualizer-tui` (the
+Lanterna-based terminal UI, shaded into a self-contained jar).
+
+The test fixtures in `nb5-visualizer-core/src/test/resources/fixtures/` are unmodified output of real
 nb5 runs against Cassandra 5 (`run-witherrors` and `run-witherrors-b` were
 produced by the demo workload above at 200/s and 400/s — the pair behind the
 comparison screenshot; `run-short` is a run shorter than the reporting interval,
