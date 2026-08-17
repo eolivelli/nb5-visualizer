@@ -27,7 +27,7 @@ import java.util.stream.Stream;
  * a directory or picks a .zip archive, and a button picks the directory
  * currently shown. Returns the chosen path, or null on cancel.
  */
-final class PathPickerDialog extends DialogWindow {
+public final class PathPickerDialog extends DialogWindow {
 
     private final Label location = new Label("");
     private final ActionListBox entries = new ActionListBox(new TerminalSize(56, 14));
@@ -103,7 +103,7 @@ final class PathPickerDialog extends DialogWindow {
      * Visible entries of a directory: subdirectories first, then .zip files,
      * each sorted case-insensitively; hidden (dot) entries are skipped.
      */
-    static List<Path> listEntries(Path dir) throws IOException {
+    public static List<Path> listEntries(Path dir) throws IOException {
         List<Path> dirs = new ArrayList<>();
         List<Path> zips = new ArrayList<>();
         try (Stream<Path> stream = Files.list(dir)) {

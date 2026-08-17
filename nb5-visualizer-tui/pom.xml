@@ -27,6 +27,30 @@
       <artifactId>lanterna</artifactId>
       <version>${lanterna.version}</version>
     </dependency>
+    <!-- SSH/SFTP support for remote metrics (the ssh flag). -->
+    <dependency>
+      <groupId>org.apache.sshd</groupId>
+      <artifactId>sshd-core</artifactId>
+      <version>${sshd.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sshd</groupId>
+      <artifactId>sshd-sftp</artifactId>
+      <version>${sshd.version}</version>
+    </dependency>
+    <!-- ed25519 keys on JDK < 15; Mina detects this provider by class name,
+         so it must never be relocated. -->
+    <dependency>
+      <groupId>net.i2p.crypto</groupId>
+      <artifactId>eddsa</artifactId>
+      <version>0.3.0</version>
+    </dependency>
+    <!-- Mina logs through slf4j; a full-screen TUI must keep the terminal quiet. -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-nop</artifactId>
+      <version>${slf4j.version}</version>
+    </dependency>
   </dependencies>
 
   <build>
@@ -46,7 +70,22 @@
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <mainClass>io.github.eolivelli.nb5visualizer.tui.TuiMain</mainClass>
                 </transformer>
+                <!-- sshd-common and sshd-sftp both ship a FileSystemProvider
+                     services file; they must be merged, not overwritten. -->
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
               </transformers>
+              <filters>
+                <!-- The eddsa jar is signed; stale signature entries would make
+                     the shaded jar refuse to load. -->
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
             </configuration>
           </execution>
         </executions>

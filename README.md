@@ -140,6 +140,32 @@ works in any ANSI terminal; launched without one (e.g. double-clicked from a fil
 manager) it falls back to a Swing terminal window. The bundled Lanterna library is
 licensed under the LGPL-3.0; its source is available at the link above.
 
+## Remote runs over SSH
+
+If the benchmark ran on a machine you reach via SSH, the TUI jar can use the
+files over there directly — no manual copying. Add `--ssh` (works for both the
+interactive TUI and the plain CLI; the connection is opened once, at launch):
+
+```bash
+# interactive: the file browser walks the remote filesystem
+java -jar nb5-visualizer-tui/target/nb5-visualizer-tui-*.jar --ssh me@bench-host
+
+# CLI: input paths refer to the remote machine (relative to the remote home)
+java -jar nb5-visualizer-tui/target/nb5-visualizer-tui-*.jar \
+  --ssh me@bench-host:2222 -i ~/.ssh/id_ed25519 \
+  bench/out-baseline bench/out-tuned --labels "baseline,tuned" -o compare.html
+```
+
+- Authentication is publickey-only: `-i/--identity <file>`, defaulting to
+  `~/.ssh/id_ed25519`, `id_rsa` or `id_ecdsa` (passphrase prompted if needed).
+- Host keys are checked against `~/.ssh/known_hosts` with accept-new semantics:
+  unknown hosts show their fingerprint and are remembered after you confirm;
+  a **changed** key is always rejected.
+- Selected inputs (metrics directories or `.zip` archives) are fetched to a
+  local temp directory, deleted on exit; the HTML report is always written
+  locally. The SSH support (Apache Mina SSHD) is bundled in the TUI jar — the
+  core CLI jar stays dependency-free and local-only.
+
 ## Comparing two runs
 
 Pass two inputs (directories or zips, in any mix) to get a comparison report of

@@ -2,7 +2,6 @@ package io.github.eolivelli.nb5visualizer.tui;
 
 import com.googlecode.lanterna.SGR;
 import com.googlecode.lanterna.TerminalSize;
-import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.gui2.BasicWindow;
 import com.googlecode.lanterna.gui2.Button;
 import com.googlecode.lanterna.gui2.DefaultWindowManager;
@@ -16,11 +15,16 @@ import com.googlecode.lanterna.gui2.Window;
 import com.googlecode.lanterna.gui2.WindowBasedTextGUI;
 import com.googlecode.lanterna.gui2.dialogs.MessageDialog;
 import com.googlecode.lanterna.gui2.dialogs.MessageDialogButton;
+import com.googlecode.lanterna.gui2.dialogs.WaitingDialog;
 import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import io.github.eolivelli.nb5visualizer.Nb5Visualizer;
+import io.github.eolivelli.nb5visualizer.tui.ssh.RemoteDownloader;
+import io.github.eolivelli.nb5visualizer.tui.ssh.SshConnection;
 
 import java.io.IOException;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -29,9 +33,11 @@ import java.util.List;
 
 /**
  * Full-screen terminal UI: browse to one metrics directory or zip (or two, for
- * a comparison), choose the output file, and render the report. Runs in any
- * ANSI terminal; without one (e.g. double-clicked from a file manager) Lanterna
- * falls back to a Swing terminal window.
+ * a comparison), choose the output file, and render the report. With an SSH
+ * connection the browser walks the remote filesystem and selected inputs are
+ * fetched to a local temp dir before rendering; the report is always local.
+ * Runs in any ANSI terminal; without one (e.g. double-clicked from a file
+ * manager) Lanterna falls back to a Swing terminal window.
  */
 final class VisualizerTui {
 
@@ -40,7 +46,29 @@ final class VisualizerTui {
     private final TextBox output = pathBox();
     private final TextBox title = pathBox();
 
+    private final SshConnection remote;   // null = local mode
+    private final Path tempRoot;          // download target in remote mode
+    private FileSystem fs;
+    private Path browseRoot;
+    private int downloadIndex;
+
+    VisualizerTui() {
+        this(null, null);
+    }
+
+    VisualizerTui(SshConnection remote, Path tempRoot) {
+        this.remote = remote;
+        this.tempRoot = tempRoot;
+    }
+
     void run() throws IOException {
+        if (remote != null) {
+            fs = remote.fileSystem();
+            browseRoot = remote.home();
+        } else {
+            fs = FileSystems.getDefault();
+            browseRoot = Paths.get("").toAbsolutePath();
+        }
         output.setText("nb5-report.html");
         try (Screen screen = new DefaultTerminalFactory().createScreen()) {
             screen.startScreen();
@@ -60,11 +88,11 @@ final class VisualizerTui {
 
         form.addComponent(new Label("Run A"));
         form.addComponent(runA);
-        form.addComponent(browseButton(gui, runA, "Pick run A (directory or zip)"));
+        form.addComponent(browseButton(gui, runA, browseTitle("Pick run A (directory or zip)")));
 
         form.addComponent(new Label("Run B"));
         form.addComponent(runB);
-        form.addComponent(browseButton(gui, runB, "Pick run B (optional, for comparison)"));
+        form.addComponent(browseButton(gui, runB, browseTitle("Pick run B (optional, for comparison)")));
 
         form.addComponent(new Label("Output"));
         form.addComponent(output);
@@ -83,6 +111,9 @@ final class VisualizerTui {
         heading.setForegroundColor(TuiTheme.ACCENT);
         heading.addStyle(SGR.BOLD);
         root.addComponent(heading);
+        if (remote != null) {
+            root.addComponent(dim("connected to " + remote.description()));
+        }
         root.addComponent(dim("Pick one run for a report, two runs for a comparison."));
         root.addComponent(new EmptySpace(new TerminalSize(0, 1)));
         root.addComponent(form);
@@ -92,6 +123,10 @@ final class VisualizerTui {
         root.addComponent(dim("tab/arrows move · enter activates · esc quits"));
         window.setComponent(root);
         return window;
+    }
+
+    private String browseTitle(String base) {
+        return remote != null ? base + " on " + remote.description() : base;
     }
 
     private Button browseButton(WindowBasedTextGUI gui, TextBox target, String dialogTitle) {
@@ -115,11 +150,11 @@ final class VisualizerTui {
         return label;
     }
 
-    /** Starts browsing from the box's current path (or its parent), else the cwd. */
-    private static Path startDirFor(TextBox target) {
+    /** Starts browsing from the box's current path (or its parent), else the browse root. */
+    private Path startDirFor(TextBox target) {
         String text = target.getText().trim();
         if (!text.isEmpty()) {
-            Path p = Paths.get(text).toAbsolutePath().normalize();
+            Path p = browseRoot.resolve(text).normalize();
             if (Files.isDirectory(p)) {
                 return p;
             }
@@ -127,7 +162,7 @@ final class VisualizerTui {
                 return p.getParent();
             }
         }
-        return Paths.get("").toAbsolutePath();
+        return browseRoot;
     }
 
     private void generate(WindowBasedTextGUI gui) {
@@ -137,9 +172,10 @@ final class VisualizerTui {
             if (text.isEmpty()) {
                 continue;
             }
-            Path p = Paths.get(text);
+            Path p = browseRoot.resolve(text);
             if (!Files.exists(p)) {
-                error(gui, "Input does not exist:\n" + p);
+                error(gui, "Input does not exist"
+                        + (remote != null ? " on " + remote.description() : "") + ":\n" + p);
                 return;
             }
             inputs.add(p);
@@ -153,11 +189,43 @@ final class VisualizerTui {
             error(gui, "Output file name must not be empty.");
             return;
         }
+        Path outputPath = Paths.get(outText);   // always local, whatever the input fs
         String titleText = title.getText().trim();
 
+        if (remote == null) {
+            finishGenerate(gui, inputs, outputPath, titleText);
+            return;
+        }
+        WaitingDialog waiting = WaitingDialog.showDialog(gui, "Downloading",
+                "Fetching from " + remote.description() + "…");
+        Thread downloader = new Thread(() -> {
+            List<Path> local = new ArrayList<>();
+            try {
+                for (Path input : inputs) {
+                    local.add(RemoteDownloader.download(input, tempRoot, downloadIndex++));
+                }
+            } catch (IOException | RuntimeException e) {
+                gui.getGUIThread().invokeLater(() -> {
+                    waiting.close();
+                    error(gui, "Download failed: "
+                            + (e.getMessage() != null ? e.getMessage() : e.toString()));
+                });
+                return;
+            }
+            gui.getGUIThread().invokeLater(() -> {
+                waiting.close();
+                finishGenerate(gui, local, outputPath, titleText);
+            });
+        }, "nb5-ssh-download");
+        downloader.setDaemon(true);
+        downloader.start();
+    }
+
+    private void finishGenerate(WindowBasedTextGUI gui, List<Path> inputs, Path outputPath,
+                                String titleText) {
         Nb5Visualizer.Result result;
         try {
-            result = new Nb5Visualizer().generate(inputs, Paths.get(outText),
+            result = new Nb5Visualizer().generate(inputs, outputPath,
                     titleText.isEmpty() ? null : titleText, null);
         } catch (IOException | IllegalArgumentException e) {
             error(gui, e.getMessage() != null ? e.getMessage() : e.toString());
