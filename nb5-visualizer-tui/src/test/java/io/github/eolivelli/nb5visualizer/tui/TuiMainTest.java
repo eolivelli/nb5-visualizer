@@ -34,9 +34,11 @@ class TuiMainTest {
     @Test
     void sshFlagsAreExtractedAndTheRestKeptInOrder() {
         TuiMain.SshArgs ssh = TuiMain.SshArgs.extract(new String[]{
-                "run-a", "--ssh", "me@bench:2222", "-o", "out.html", "-i", "/keys/k", "run-b"});
+                "run-a", "--ssh", "me@bench:2222", "-o", "out.html", "-i", "/keys/k",
+                "--remote-dir", "bench/results", "run-b"});
         assertEquals("me@bench:2222", ssh.spec);
         assertEquals(Paths.get("/keys/k"), ssh.identity);
+        assertEquals("bench/results", ssh.remoteDir);
         assertArrayEquals(new String[]{"run-a", "-o", "out.html", "run-b"}, ssh.rest);
     }
 
@@ -51,6 +53,8 @@ class TuiMainTest {
     void identityWithoutSshIsRejected() {
         assertThrows(IllegalArgumentException.class,
                 () -> TuiMain.SshArgs.extract(new String[]{"-i", "/keys/k", "run-a"}));
+        assertThrows(IllegalArgumentException.class,
+                () -> TuiMain.SshArgs.extract(new String[]{"--remote-dir", "d", "run-a"}));
         assertThrows(IllegalArgumentException.class,
                 () -> TuiMain.SshArgs.extract(new String[]{"--ssh"}));
     }

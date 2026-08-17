@@ -63,13 +63,14 @@ public final class TuiMain {
         Path knownHosts = Paths.get(System.getProperty("user.home"), ".ssh", "known_hosts");
         try (SshConnection conn = SshConnection.open(
                 SshTarget.parse(ssh.spec), ssh.identity, knownHosts, prompts, prompts)) {
+            Path baseDir = resolveBaseDir(conn, ssh.remoteDir);
             Path tempRoot = Files.createTempDirectory("nb5-ssh-");
             Runtime.getRuntime().addShutdownHook(
                     new Thread(() -> RemoteDownloader.deleteRecursively(tempRoot)));
             if (ssh.rest.length > 0) {
-                Main.main(downloadInputs(ssh.rest, conn, tempRoot));
+                Main.main(downloadInputs(ssh.rest, conn, baseDir, tempRoot));
             } else {
-                new VisualizerTui(conn, tempRoot).run();
+                new VisualizerTui(conn, baseDir, tempRoot).run();
             }
         } catch (IOException | IllegalArgumentException e) {
             System.err.println(e.getMessage() != null ? e.getMessage() : e.toString());
@@ -82,8 +83,8 @@ public final class TuiMain {
      * path of its downloaded copy. Which options take a value mirrors the
      * option table of the core {@link Main#run}; keep the two in sync.
      */
-    private static String[] downloadInputs(String[] args, SshConnection conn, Path tempRoot)
-            throws IOException {
+    private static String[] downloadInputs(String[] args, SshConnection conn, Path baseDir,
+                                           Path tempRoot) throws IOException {
         Set<String> valueOptions = Set.of("-o", "--output", "--title", "--labels");
         String[] rewritten = args.clone();
         int inputIndex = 0;
@@ -91,7 +92,7 @@ public final class TuiMain {
             if (valueOptions.contains(rewritten[i])) {
                 i++;
             } else if (!rewritten[i].startsWith("-")) {
-                Path remote = conn.home().resolve(rewritten[i]);
+                Path remote = baseDir.resolve(rewritten[i]);
                 if (!Files.exists(remote)) {
                     throw new IOException("Remote input does not exist on " + conn.description()
                             + ": " + remote);
@@ -101,6 +102,19 @@ public final class TuiMain {
             }
         }
         return rewritten;
+    }
+
+    /** The directory remote paths start at: {@code --remote-dir} (against home) or home. */
+    private static Path resolveBaseDir(SshConnection conn, String remoteDir) throws IOException {
+        if (remoteDir == null) {
+            return conn.home();
+        }
+        Path base = conn.home().resolve(remoteDir).normalize();
+        if (!Files.isDirectory(base)) {
+            throw new IOException("--remote-dir is not a directory on " + conn.description()
+                    + ": " + base);
+        }
+        return base;
     }
 
     private static boolean wantsHelp(String[] args) {
@@ -122,25 +136,32 @@ public final class TuiMain {
         System.out.println("                           report is always written locally.");
         System.out.println("  -i, --identity <file>    private key (default: ~/.ssh/id_ed25519,");
         System.out.println("                           id_rsa or id_ecdsa). Auth is publickey-only.");
+        System.out.println("  --remote-dir <path>      initial directory on the remote machine: the");
+        System.out.println("                           file browser starts there and relative input");
+        System.out.println("                           paths resolve against it (default: remote home;");
+        System.out.println("                           relative values resolve against the home).");
         System.out.println("  Host keys are checked against ~/.ssh/known_hosts; unknown hosts are");
         System.out.println("  confirmed on the console and remembered, changed keys are rejected.");
     }
 
-    /** {@code --ssh}/{@code -i} pulled out of the arg list; the rest untouched. */
+    /** {@code --ssh}/{@code -i}/{@code --remote-dir} pulled out of the arg list; the rest untouched. */
     static final class SshArgs {
         final String spec;
         final Path identity;
+        final String remoteDir;
         final String[] rest;
 
-        private SshArgs(String spec, Path identity, String[] rest) {
+        private SshArgs(String spec, Path identity, String remoteDir, String[] rest) {
             this.spec = spec;
             this.identity = identity;
+            this.remoteDir = remoteDir;
             this.rest = rest;
         }
 
         static SshArgs extract(String[] args) {
             String spec = null;
             Path identity = null;
+            String remoteDir = null;
             List<String> rest = new ArrayList<>();
             for (int i = 0; i < args.length; i++) {
                 switch (args[i]) {
@@ -151,14 +172,18 @@ public final class TuiMain {
                     case "--identity":
                         identity = Paths.get(requireValue(args, ++i, args[i - 1]));
                         break;
+                    case "--remote-dir":
+                        remoteDir = requireValue(args, ++i, "--remote-dir");
+                        break;
                     default:
                         rest.add(args[i]);
                 }
             }
-            if (identity != null && spec == null) {
-                throw new IllegalArgumentException("-i/--identity requires --ssh user@host[:port]");
+            if (spec == null && (identity != null || remoteDir != null)) {
+                throw new IllegalArgumentException(
+                        "-i/--identity and --remote-dir require --ssh user@host[:port]");
             }
-            return new SshArgs(spec, identity, rest.toArray(new String[0]));
+            return new SshArgs(spec, identity, remoteDir, rest.toArray(new String[0]));
         }
 
         private static String requireValue(String[] args, int i, String option) {

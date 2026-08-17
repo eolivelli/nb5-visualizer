@@ -182,6 +182,11 @@ java -jar nb5-visualizer-tui/target/nb5-visualizer-tui-*.jar \
 
 - Authentication is publickey-only: `-i/--identity <file>`, defaulting to
   `~/.ssh/id_ed25519`, `id_rsa` or `id_ecdsa` (passphrase prompted if needed).
+- `--remote-dir <path>` sets the initial directory on the remote machine: the
+  TUI file browser starts there and relative CLI input paths resolve against
+  it (default: the remote home; a relative value resolves against the home).
+  With it, the CLI example above becomes
+  `--ssh me@bench-host --remote-dir bench out-baseline out-tuned …`.
 - Host keys are checked against `~/.ssh/known_hosts` with accept-new semantics:
   unknown hosts show their fingerprint and are remembered after you confirm;
   a **changed** key is always rejected.

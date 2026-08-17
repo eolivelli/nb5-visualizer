@@ -47,6 +47,13 @@ class SshConnectionTest {
                     .collect(Collectors.toList());
             assertEquals(List.of("run-a", "run-b", "archive.zip"), names);
 
+            // a subdirectory as the starting point (the --remote-dir case)
+            Path subdir = conn.home().resolve("run-b").normalize();
+            assertTrue(Files.isDirectory(subdir));
+            assertEquals(List.of("csv"), PathPickerDialog.listEntries(subdir).stream()
+                    .map(p -> p.getFileName().toString())
+                    .collect(Collectors.toList()));
+
             // recursive dir download preserves tree and bytes
             Path localRoot = work.resolve("downloads");
             Files.createDirectories(localRoot);

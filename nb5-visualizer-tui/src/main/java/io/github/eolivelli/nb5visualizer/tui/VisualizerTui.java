@@ -47,24 +47,26 @@ final class VisualizerTui {
     private final TextBox title = pathBox();
 
     private final SshConnection remote;   // null = local mode
+    private final Path remoteStartDir;    // where remote browsing starts (--remote-dir or home)
     private final Path tempRoot;          // download target in remote mode
     private FileSystem fs;
     private Path browseRoot;
     private int downloadIndex;
 
     VisualizerTui() {
-        this(null, null);
+        this(null, null, null);
     }
 
-    VisualizerTui(SshConnection remote, Path tempRoot) {
+    VisualizerTui(SshConnection remote, Path remoteStartDir, Path tempRoot) {
         this.remote = remote;
+        this.remoteStartDir = remoteStartDir;
         this.tempRoot = tempRoot;
     }
 
     void run() throws IOException {
         if (remote != null) {
             fs = remote.fileSystem();
-            browseRoot = remote.home();
+            browseRoot = remoteStartDir != null ? remoteStartDir : remote.home();
         } else {
             fs = FileSystems.getDefault();
             browseRoot = Paths.get("").toAbsolutePath();
